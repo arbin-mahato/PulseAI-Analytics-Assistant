@@ -1,0 +1,73 @@
+name: Build & Push to Artifact Registry
+
+on:
+  push:
+    tags:
+      - 'v*'  # Matches v1, v1.0, v1.0.1, v2, v2.3.4, etc.
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    env:
+      GCP_ARTIFACT_REPO: client-artifact-repo
+
+    steps:
+      # Checkout repo
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      # Configure Docker for Artifact Registry
+      - name: Configure Docker to use Artifact Registry
+        run: |
+          echo "🔑 Configuring Docker for Artifact Registry..."
+          gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      # Extract version tag
+      - name: Extract version tag
+        run: |
+          VERSION_TAG=${GITHUB_REF#refs/tags/}
+          IMAGE="asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${GCP_ARTIFACT_REPO}/client-app:${VERSION_TAG}"
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+          echo "📦 Version Tag: ${VERSION_TAG}"
+
+      # Check if image already exists
+      - name: Check if image exists
+        id: check-image
+        run: |
+          echo "🔍 Checking if image already exists..."
+          
+          if gcloud artifacts docker images describe "$IMAGE" --format="get(name)" 2>/dev/null; then
+            echo "❌ ERROR: Image with tag ${VERSION_TAG} already exists!"
+            echo "📍 Existing image: $IMAGE"
+            echo "💡 Please use a different version tag or delete the existing image first."
+            echo "image_exists=true" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "✅ Image does not exist. Proceeding with build..."
+            echo "image_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Build Docker image with version tag
+      - name: Build Docker image
+        if: steps.check-image.outputs.image_exists == 'false'
+        run: |
+          echo "🐳 Building Docker image..."
+          docker build -t "$IMAGE" .
+
+      # Push Docker image
+      - name: Push Docker image
+        if: steps.check-image.outputs.image_exists == 'false'
+        run: |
+          echo "🚀 Pushing Docker image to Artifact Registry..."
+          docker push "$IMAGE"
+          echo "✅ Image pushed: $IMAGE"
+          echo "📝 Version Tag: ${VERSION_TAG}"

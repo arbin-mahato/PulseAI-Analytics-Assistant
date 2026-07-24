@@ -1,0 +1,94 @@
+name: Deploy GCP Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      cloudsql_name:
+        description: "Enter Cloud SQL instance name"
+        required: true
+        default: "my-sql-instance"
+      bucket_name:
+        description: "Enter GCS bucket name (must be globally unique)"
+        required: true
+        default: "my-unique-bucket-name"
+      artifact_repo_name:
+        description: "Enter Artifact Registry repo name"
+        required: true
+        default: "my-artifact-repo"
+      region:
+        description: "Enter GCP region"
+        required: true
+        default: "asia-southeast1"
+
+jobs:
+  setup-infra:
+    name: Setup GCP Infrastructure
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      REGION: ${{ github.event.inputs.region }}
+      SQL_INSTANCE_NAME: ${{ github.event.inputs.cloudsql_name }}
+      BUCKET_NAME: ${{ github.event.inputs.bucket_name }}
+      ARTIFACT_REPO_NAME: ${{ github.event.inputs.artifact_repo_name }}
+
+    steps:
+      # ✅ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ✅ Authenticate with GCP
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # ✅ Setup gcloud
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      # ✅ Enable required APIs
+      - name: Enable Required APIs
+        run: |
+          echo "🔹 Enabling required APIs..."
+          gcloud services enable sqladmin.googleapis.com
+          gcloud services enable artifactregistry.googleapis.com
+          gcloud services enable storage.googleapis.com
+
+      # ✅ Create Cloud SQL
+      - name: Create Cloud SQL Instance
+        run: |
+          echo "🔹 Creating Cloud SQL instance: $SQL_INSTANCE_NAME"
+          gcloud sql instances create $SQL_INSTANCE_NAME \
+            --database-version=POSTGRES_16 \
+            --edition=ENTERPRISE \
+            --tier=db-f1-micro \
+            --region=$REGION \
+            || echo "Instance already exists or failed, skipping."
+
+      # ✅ Create GCS Bucket
+      - name: Create GCS Bucket
+        run: |
+          echo "🔹 Creating GCS Bucket: $BUCKET_NAME"
+          gsutil mb -l $REGION gs://$BUCKET_NAME/ \
+            || echo "Bucket already exists, skipping."
+
+      # ✅ Create Artifact Registry
+      - name: Create Artifact Registry Repo
+        run: |
+          echo "🔹 Creating Artifact Repository: $ARTIFACT_REPO_NAME"
+          gcloud artifacts repositories create $ARTIFACT_REPO_NAME \
+            --repository-format=docker \
+            --location=$REGION \
+            --description="Artifact repo for $ARTIFACT_REPO_NAME" \
+            || echo "Repo already exists, skipping."
+
+      # ✅ Verify Created Resources
+      - name: Verify Created Resources
+        run: |
+          echo "✅ Verifying created resources..."
+          gcloud sql instances list --filter="name:$SQL_INSTANCE_NAME"
+          gsutil ls -p $PROJECT_ID
+          gcloud artifacts repositories list --location=$REGION

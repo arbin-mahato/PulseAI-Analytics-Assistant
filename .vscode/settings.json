@@ -1,0 +1,11 @@
+{
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/db/**": true,
+    "**/.duckdb_history": true,
+    "**/metric_store.duckdb*": true
+  },
+  "files.exclude": {
+    "**/db/metric_store.duckdb*": false
+  }
+}

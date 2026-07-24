@@ -1,0 +1,23 @@
+/* Neo Blue Pro Theme Variables */
+:root {
+  --primary: #3B82F6;
+  --primary-dark: #2563EB;
+  --accent: #10B981;
+  --background: #F4F7FA;
+  --card-bg: #FFFFFF;
+  --thinking-bg: #0D1117;
+  --text-main: #1E293B;
+  --border-light: #E5E7EB;
+}
+
+/* Typing animation keyframes */
+@keyframes typing {
+  0%, 80%, 100% { 
+    transform: scale(0.8); 
+    opacity: 0.5; 
+  }
+  40% { 
+    transform: scale(1); 
+    opacity: 1; 
+  }
+}
