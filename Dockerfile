@@ -1,37 +1,26 @@
-# -------- Stage 1: Builder --------
-FROM node:20-alpine AS builder
-
+FROM node:24-bookworm-slim AS builder
 WORKDIR /app
-
-# Install deps first for caching
 COPY package*.json ./
 RUN npm ci
-
-# Copy the rest of the project
 COPY . .
-
-# Build Next.js standalone app and Prisma client
-RUN npx prisma generate 
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-
-# -------- Stage 2: Runtime --------
-FROM node:20-alpine AS runner
-
+FROM node:24-bookworm-slim AS runner
 WORKDIR /app
-
-RUN npm install -g prisma@6.18.0
-# Add only necessary binaries
-RUN apk add --no-cache openssl libc6-compat
-
-# Copy minimal standalone build output
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv libgomp1 ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt ./
+RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+COPY --from=builder /app/.tradelab-build/standalone ./
+COPY --from=builder /app/.tradelab-build/static ./.tradelab-build/static
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-
-# Expose port
+COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
+COPY worker ./worker
+COPY assets ./assets
+COPY script ./script
+COPY src/content ./src/content
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PYTHON_BIN=/opt/venv/bin/python TRADELAB_DATA_DIR=/app/data HOSTNAME=0.0.0.0 PORT=3000
+RUN mkdir -p /app/data && chown -R node:node /app /opt/venv
+USER node
 EXPOSE 3000
-
-# Start Next.js standalone server
-CMD ["node", "server.js"]
+CMD ["sh", "script/start-container.sh"]

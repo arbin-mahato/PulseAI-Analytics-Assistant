@@ -56,3 +56,5 @@ __pycache__/
 *.pyc
 
 .tradelab-build/
+
+/eval_outputs/

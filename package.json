@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
-    "start": "next start",
+    "start": "node script/start.mjs",
     "chat:web": "next dev",
     "chat:cli": "node --import tsx agent/tradelab_agent_cli.ts",
     "cli": "node --import tsx agent/tradelab_agent_cli.ts",
@@ -20,7 +20,8 @@
     "test:unit": "node --import tsx --test tests/*.test.ts",
     "test:python": "node script/test-python.mjs",
     "test:live": "node --import tsx script/live-smoke.ts",
-    "seed:clickhouse": "node script/populate_clickhouse_data.js"
+    "seed:clickhouse": "node script/populate_clickhouse_data.js",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@clickhouse/client": "^1.13.0",

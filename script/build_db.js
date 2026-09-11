@@ -6,7 +6,7 @@ dotenv.config({path:'.env.local',quiet:true});dotenv.config({quiet:true});
 const python=process.env.PYTHON_BIN || (existsSync('.venv/bin/python')?path.resolve('.venv/bin/python'):'python3');
 const output=process.env.METRIC_STORE_DB_PATH || path.join(process.env.TRADELAB_DATA_DIR || 'data','warehouse.duckdb');
 const args=['script/data/seed.py','--output',output,'--seed',process.env.SEED || '42','--users',process.env.SEED_USERS || '100'];
-if(process.env.AS_OF)args.push('--as-of',process.env.AS_OF);
+if(process.env.SEED_AS_OF || process.env.AS_OF)args.push('--as-of',process.env.SEED_AS_OF || process.env.AS_OF);
 const result=spawnSync(python,[...args,...process.argv.slice(2)],{stdio:'inherit'});
 if(result.error)console.error(result.error.message);
 process.exit(result.status ?? 1);
