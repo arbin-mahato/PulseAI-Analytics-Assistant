@@ -90,7 +90,8 @@ async function fetchMetricsSchema(): Promise<SchemaRow[]> {
  */
 async function fetchAnalyticsRaw(database?: string): Promise<any> {
   const url = process.env.CLICKHOUSE_URL || process.env.CLICKHOUSE_HOST;
-  if (!url) throw new Error("CLICKHOUSE_URL or CLICKHOUSE_HOST env var is required to fetch analytics schema");
+  // ClickHouse is optional - return null if not configured
+  if (!url) return null;
 
   const client = createClient({
     url,
@@ -189,7 +190,9 @@ export async function getSchema(clickhouseDatabase?: string) {
 
   try {
     analyticsRaw = await fetchAnalyticsRaw(clickhouseDatabase);
-    analytics = normalizeAnalyticsRows(analyticsRaw);
+    if (analyticsRaw) {
+      analytics = normalizeAnalyticsRows(analyticsRaw);
+    }
   } catch (err) {
     // Soft-fail: log and keep analytics empty but preserve error in analytics_raw
     console.error("getSchema: failed to fetch analytics schema; returning metrics only. Error:", err);

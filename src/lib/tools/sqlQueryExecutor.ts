@@ -1,23 +1,14 @@
-import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { executeSQLFromFile } from "../utilities/sql_query_executor";
-import { getPrompt } from "../prompts";
 import * as path from 'path';
 import * as fs from 'fs';
 
 /**
- * SQL Query Executor Tool
+ * Tool Implementation: SQL Query Executor
  * Reads SQL queries from a JSON file and executes them against the database.
  */
-export const sql_query_executor_tool = tool(
-  "sql_query_executor",
-  getPrompt("sql_query_executor_prompt"),
-  {
-    file_path: z
-      .string()
-      .describe("Absolute or relative path to the JSON file containing { database, query }."),
-  },
-  async (args: { file_path: string }) => {
+export const sql_query_executor_tool = {
+  implementation: async (args: { file_path: string }) => {
     try {
       const result = await executeSQLFromFile(args.file_path);
       const filePath = result.csvPath;
@@ -49,4 +40,4 @@ export const sql_query_executor_tool = tool(
       };
     }
   }
-);
+};

@@ -1,9 +1,7 @@
-import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import fs from "fs";
 import path from "path";
 import Anthropic from "@anthropic-ai/sdk";
-import { getPrompt } from "../prompts";
 
 const client = new Anthropic();
 function extractFileIds(response: any): string[] {
@@ -26,14 +24,8 @@ function extractFileIds(response: any): string[] {
     return fileIds;
     }
     
-export const pdfGenerator_tool = tool(
-  "pdfGenerator",
-  getPrompt("pdf_generator_prompt"),
-  {
-    content: z.string().describe("The analysis / report content to embed into the PDF."),
-    filename: z.string().optional().describe("Optional desired filename for the generated PDF."),
-  },
-  async (args: { content: string; filename?: string }) => {
+export const pdfGenerator_tool = {
+  implementation: async (args: { content: string; filename?: string }) => {
     try {
       if (!process.env.ANTHROPIC_API_KEY) {
         const msg = "PDF generation unavailable: missing ANTHROPIC_API_KEY environment variable.";
@@ -164,4 +156,4 @@ export const pdfGenerator_tool = tool(
       };
     }
   }
-);
+};

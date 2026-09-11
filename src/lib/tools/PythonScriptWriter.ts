@@ -1,30 +1,14 @@
-import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import fs from "fs/promises";
 import path from "path";
-import { getPrompt } from "../prompts";
 
 /**
- * Tool: python_script_writer
+ * Tool Implementation: python_script_writer
  * Purpose: Saves a Python script string to /temp/<file_name>.py
  * so it can be executed by the python_script_executor tool.
  */
-export const python_script_writer_tool = tool(
-  "python_script_writer",
-  getPrompt("python_script_writer_prompt"),
-  {
-    script_content: z
-      .string()
-      .min(1)
-      .describe("The complete Python script code to write to disk."),
-    file_name: z
-      .string()
-      .optional()
-      .describe(
-        "Optional name for the Python script file (without extension). Defaults to 'tradelab_analysis_<timestamp>'."
-      ),
-  },
-  async (args: { script_content: string; file_name?: string }) => {
+export const python_script_writer_tool = {
+  implementation: async (args: { script_content: string; file_name?: string }) => {
     try {
       let scriptContent = args.script_content;
       
@@ -98,4 +82,4 @@ export const python_script_writer_tool = tool(
       };
     }
   }
-);
+};

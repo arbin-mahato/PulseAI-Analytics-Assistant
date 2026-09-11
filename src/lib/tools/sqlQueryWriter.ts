@@ -1,26 +1,13 @@
-import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import fs from "fs/promises";
 import path from "path";
 
 /**
- * Creates a JSON file containing an SQL query and optional database name.
+ * Tool Implementation: Creates a JSON file containing an SQL query and optional database name.
  * The resulting file can be passed to `sql_query_executor` or `json_sql_query_executor`.
  */
-export const sql_query_writer_tool = tool(
-  "sql_query_writer",
-  "Create a JSON file that defines a SQL query for execution tools. Returns the path to the created JSON file.",
-  {
-    database: z
-      .string()
-      .default("")
-      .describe("The target database name."),
-    query: z
-      .string()
-      .min(1)
-      .describe("The SQL query string to execute."),
-  },
-  async (args: { database: string; query: string }) => {
+export const sql_query_writer_tool = {
+  implementation: async (args: { database: string; query: string }) => {
     try {
       const tmpDir = "/tmp";
       const timestamp = Date.now();
@@ -55,4 +42,4 @@ export const sql_query_writer_tool = tool(
       };
     }
   }
-);
+};

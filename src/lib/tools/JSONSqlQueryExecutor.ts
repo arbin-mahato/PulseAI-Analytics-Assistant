@@ -1,33 +1,13 @@
-import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { executeSQLToJson } from "../utilities/json_sql_query_executor";
-import { getPrompt } from "../prompts";
 
 /**
- * json_sql_query_executor
+ * Tool Implementation: json_sql_query_executor
  * Input: the output of sql_query_generator (primarily its JSON file path).
- * Output: the output JSON file path, inferred JSON schema, and first 2 rows (samples).
+ * Output: file path, row count, and first sample row (compact format to save tokens).
  */
-export const json_sql_query_executor_tool = tool(
-  "json_sql_query_executor",
-  getPrompt("json_sql_query_executor_prompt"),
-  {
-    // The parent agent passes the generator's output. We only require the file path,
-    // but accept a structured object too for convenience.
-    file_path: z
-      .string()
-      .optional()
-      .describe("Path to JSON produced by sql_query_generator (contains { database, query })."),
-    generated: z
-      .object({
-        filePath: z.string().describe("Path to JSON produced by sql_query_generator."),
-        database: z.string().optional(),
-        query: z.string().optional(),
-      })
-      .optional()
-      .describe("Alternatively pass the full object returned by sql_query_generator."),
-  },
-  async (args: { file_path?: string; generated?: { filePath: string } }) => {
+export const json_sql_query_executor_tool = {
+  implementation: async (args: { file_path?: string; generated?: { filePath: string } }) => {
     try {
       const filePath = args.file_path ?? args.generated?.filePath;
       if (!filePath) {
@@ -36,12 +16,19 @@ export const json_sql_query_executor_tool = tool(
 
       const result = await executeSQLToJson(filePath);
 
-      // Exactly what your spec asks to return
+      // Return only summary + 1 sample row (not full results)
+      const summary = {
+        output_json_file_path: result.output_json_file_path,
+        row_count: result.row_count,
+        json_schema: result.json_schema,
+        first_sample: result.sample_first_two?.[0] || null,
+      };
+
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(result, null, 2),
+            text: JSON.stringify(summary, null, 2),
           },
         ],
       };
@@ -51,4 +38,4 @@ export const json_sql_query_executor_tool = tool(
       };
     }
   }
-);
+};
