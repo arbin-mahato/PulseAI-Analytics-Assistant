@@ -1,3 +1,28 @@
-import fs from 'node:fs';import {warehousePath} from '@/lib/runtime/config';import {configuredProviders} from '../../../../agent/providers/router';import {requireOwner,httpError} from '@/lib/runtime/auth';
-export const runtime='nodejs';export const dynamic='force-dynamic';
-export async function GET(req:Request){try{requireOwner(req);const file=warehousePath().replace(/\.[^/.]+$/, '')+'.manifest.json';return Response.json({providers:configuredProviders().map(p=>({name:p.name,model:p.model})),dataset:fs.existsSync(file)?JSON.parse(fs.readFileSync(file,'utf8')):null,storage:'local',analytics:process.env.ANALYTICS_BACKEND||'duckdb'},{headers:{'cache-control':'no-store'}});}catch(e){return httpError(e);}}
+import fs from "node:fs";
+import { warehousePath } from "@/lib/runtime/config";
+import { configuredProviders } from "../../../../agent/providers/router";
+import { requireOwner, httpError } from "@/lib/runtime/auth";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export async function GET(req: Request) {
+  try {
+    requireOwner(req);
+    const file = warehousePath().replace(/\.[^/.]+$/, "") + ".manifest.json";
+    return Response.json(
+      {
+        providers: configuredProviders().map((p) => ({
+          name: p.name,
+          model: p.model,
+        })),
+        dataset: fs.existsSync(file)
+          ? JSON.parse(fs.readFileSync(file, "utf8"))
+          : null,
+        storage: "local",
+        analytics: process.env.ANALYTICS_BACKEND || "duckdb",
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
+  } catch (e) {
+    return httpError(e);
+  }
+}

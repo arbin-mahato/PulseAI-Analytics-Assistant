@@ -1,3 +1,54 @@
-'use client';
-import {useEffect,useState} from 'react';
-export default function PromptsPanel(){const [value,setValue]=useState(''),[system,setSystem]=useState(''),[message,setMessage]=useState('Loading…');useEffect(()=>{fetch('/api/prompts').then(r=>r.json()).then(data=>{setValue(data.additional_instructions||'');setSystem(data.tradelab_system_prompt||'');setMessage(data.error||'');});},[]);return <div className="p-5 space-y-4 overflow-auto h-full"><h2 className="text-xl font-semibold">Response preferences</h2><p>Choose the tone, level of detail or report format for your workspace.</p><textarea aria-label="Additional instructions" maxLength={4000} value={value} onChange={e=>setValue(e.target.value)} className="w-full border rounded p-3 min-h-40"/><button className="bg-[#0C499C] text-white rounded px-4 py-2" onClick={async()=>{try{const r=await fetch('/api/prompts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'additional_instructions',value})});const data=await r.json();setMessage(r.ok?'Saved.':data.error);}catch{setMessage('Could not save.');}}}>Save preferences</button><p role="status">{message}</p><details><summary>Shared analysis instructions</summary><pre className="whitespace-pre-wrap text-xs mt-3">{system}</pre></details></div>;}
+"use client";
+import { useEffect, useState } from "react";
+export default function PromptsPanel() {
+  const [value, setValue] = useState(""),
+    [system, setSystem] = useState(""),
+    [message, setMessage] = useState("Loading…");
+  useEffect(() => {
+    fetch("/api/prompts")
+      .then((r) => r.json())
+      .then((data) => {
+        setValue(data.additional_instructions || "");
+        setSystem(data.tradelab_system_prompt || "");
+        setMessage(data.error || "");
+      });
+  }, []);
+  return (
+    <div className="p-5 space-y-4 overflow-auto h-full">
+      <h2 className="text-xl font-semibold">Response preferences</h2>
+      <p>
+        Choose the tone, level of detail or report format for your workspace.
+      </p>
+      <textarea
+        aria-label="Additional instructions"
+        maxLength={4000}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="w-full border rounded p-3 min-h-40"
+      />
+      <button
+        className="bg-[#0C499C] text-white rounded px-4 py-2"
+        onClick={async () => {
+          try {
+            const r = await fetch("/api/prompts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ key: "additional_instructions", value }),
+            });
+            const data = await r.json();
+            setMessage(r.ok ? "Saved." : data.error);
+          } catch {
+            setMessage("Could not save.");
+          }
+        }}
+      >
+        Save preferences
+      </button>
+      <p role="status">{message}</p>
+      <details>
+        <summary>Shared analysis instructions</summary>
+        <pre className="whitespace-pre-wrap text-xs mt-3">{system}</pre>
+      </details>
+    </div>
+  );
+}

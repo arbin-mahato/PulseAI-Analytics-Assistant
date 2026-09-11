@@ -3,7 +3,11 @@
 import { useState } from "react";
 import logger from "../lib/logger";
 
-export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () => void }) {
+export default function FileUpload({
+  onUploadSuccess,
+}: {
+  onUploadSuccess?: () => void;
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
@@ -19,7 +23,7 @@ export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () =
 
       logger.info(
         { filename: selected.name, size: selected.size },
-        "File selected for upload"
+        "File selected for upload",
       );
     }
   };
@@ -55,17 +59,22 @@ export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () =
       setFile(null);
 
       // Reset file input
-      const fileInput = document.getElementById("file-input") as HTMLInputElement;
+      const fileInput = document.getElementById(
+        "file-input",
+      ) as HTMLInputElement;
       if (fileInput) fileInput.value = "";
 
       if (onUploadSuccess) onUploadSuccess();
 
       logger.info(
-        { uploadedUrl: data.file.url, visibility: isPublic ? "public" : "private" },
-        "File uploaded successfully"
+        {
+          uploadedUrl: data.file.url,
+          visibility: isPublic ? "public" : "private",
+        },
+        "File uploaded successfully",
       );
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed.");
       logger.error({ err, filename: file?.name }, "File upload failed");
     } finally {
       setUploading(false);
