@@ -46,3 +46,11 @@ metric_store.db
 metric_store.duckdb
 
 generated_files
+# Reproducible configuration only; never commit local credentials/data
+!.env.example
+/.venv/
+/data/
+/test-results/
+/playwright-report/
+__pycache__/
+*.pyc
