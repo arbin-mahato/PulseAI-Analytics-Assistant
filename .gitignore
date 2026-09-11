@@ -54,3 +54,5 @@ generated_files
 /playwright-report/
 __pycache__/
 *.pyc
+
+.tradelab-build/
