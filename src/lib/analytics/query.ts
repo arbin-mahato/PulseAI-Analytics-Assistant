@@ -16,6 +16,7 @@ export async function executeQuery(database: string, query: string, signal?: Abo
     try {
       const result = await client.query({ query:validated.query, format:'JSON', abort_signal:signal, clickhouse_settings:{ readonly:'1', max_execution_time:20, max_result_rows:'10000', result_overflow_mode:'throw', max_memory_usage:'268435456' } });
       const data = await result.json<{meta:{name:string;type:string}[];data:Record<string,unknown>[]}>();
+      if(!data.meta)throw new Error('ClickHouse did not return column metadata.');
       return { columns:data.meta, rows:data.data, row_count:data.data.length };
     } finally { await client.close(); }
   }

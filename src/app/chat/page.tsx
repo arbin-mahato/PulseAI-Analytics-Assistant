@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { readEvents } from '@/lib/client/sse';
 import PromptsPanel from '@/components/PromptsPanel';
 import ToolsPanel, { type ToolsPanelRef } from '@/components/ToolsPanel';
 // ThinkingPanel is implemented inline below to make it easy to style & animate
@@ -148,7 +149,7 @@ function ThinkingPanel({
 
       <div ref={listRef} className={`mt-3 transition-[opacity,transform] duration-350 ${isExpanded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'} space-y-2 overflow-y-auto max-h-64`}> 
         {thinkingLog.length === 0 ? (
-          <div className="text-xs text-slate-500">No thinking steps yet</div>
+          <div className="text-xs text-slate-500">No analysis steps yet</div>
         ) : (
           <ul className="text-xs pr-2 space-y-1 w-full">
             {thinkingLog.map((step, i) => {
@@ -184,6 +185,17 @@ function ThinkingPanel({
 
 export default function ChatPage() {
   const [query, setQuery] = useState('');
+  const [ready, setReady] = useState(false);
+  const [provider, setProvider] = useState('auto');
+  const [providers, setProviders] = useState<{name:string;model:string}[]>([]);
+  const [conversations, setConversations] = useState<{id:string;title:string}[]>([]);
+  const [notice, setNotice] = useState('Loading workspace…');
+  const refreshConversations = async () => { const r=await fetch('/api/conversations'); if(r.ok)setConversations((await r.json()).conversations); };
+  const loadConversation = async (id:string) => {
+    if(!id)return; const r=await fetch(`/api/conversations?id=${encodeURIComponent(id)}`);
+    if(r.ok){const c=await r.json();setCurrentSessionId(c.id);setMessages(c.messages);}
+    else {localStorage.removeItem('tradelab_session_id');setCurrentSessionId(null);}
+  };
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -197,22 +209,21 @@ export default function ChatPage() {
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Load sessionId from localStorage on mount
   useEffect(() => {
-    const savedSessionId = localStorage.getItem('tradelab_session_id');
-    if (savedSessionId) {
-      setCurrentSessionId(savedSessionId);
-      console.log('Loaded session from localStorage:', savedSessionId);
-    }
+    let live=true;
+    (async()=>{try{
+      const session=await fetch('/api/session');
+      if(session.status===401){window.location.replace('/signin');return;}
+      if(!session.ok)throw new Error((await session.json()).error);
+      const r=await fetch('/api/status');const status=await r.json();
+      if(!r.ok)throw new Error(status.error);
+      if(!live)return;setProviders(status.providers);setNotice(status.dataset?'Synthetic demo data · INR · Saved on this server':'Dataset missing — run npm run build-db');
+      const saved=localStorage.getItem('tradelab_session_id');if(saved)await loadConversation(saved);
+      await refreshConversations();setReady(true);
+    }catch(e){setNotice(e instanceof Error?e.message:'Could not load workspace.');}})();
+    return ()=>{live=false;abortControllerRef.current?.abort();};
   }, []);
-
-  // Save sessionId to localStorage whenever it changes
-  useEffect(() => {
-    if (currentSessionId) {
-      localStorage.setItem('tradelab_session_id', currentSessionId);
-      console.log('Saved session to localStorage:', currentSessionId);
-    }
-  }, [currentSessionId]);
+  useEffect(() => {if(currentSessionId)localStorage.setItem('tradelab_session_id',currentSessionId);}, [currentSessionId]);
 
   // Helper to scroll latest content into view (smooth)
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
@@ -234,10 +245,10 @@ export default function ChatPage() {
 
   const addMessage = (type: 'user' | 'assistant', content: string) => {
     const message: Message = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       type,
       content,
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, message]);
   };
@@ -254,8 +265,7 @@ export default function ChatPage() {
   const handleStopProcessing = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
-      setIsLoading(false);
-      addMessage('assistant', 'Processing stopped by user.');
+
     }
   };
 
@@ -287,241 +297,33 @@ export default function ChatPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-
-    const userQuery = query.trim();
-    addMessage('user', userQuery);
-    setQuery('');
-    setIsLoading(true);
-    
-    console.log('Query submitted, resetting tools');
-    toolsPanelRef.current?.resetTools();
-
-    try {
-      // Create new abort controller for this request
-      abortControllerRef.current = new AbortController();
-      
-      const res = await fetch('/api/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          query: userQuery,
-          sessionId: currentSessionId 
-        }),
-        signal: abortControllerRef.current.signal
-      });
-
-      if (!res.ok) throw new Error('Failed to get response');
-      
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let assistantResponse = '';
-      
-      const assistantMessageId = Date.now().toString();
-      const thinkingLog: ThinkingStep[] = [];
-      
-      setMessages(prev => [...prev, {
-        id: assistantMessageId,
-        type: 'assistant',
-        content: '',
-        finalAnswer: '',
-        thinkingLog: thinkingLog,
-        currentTool: undefined,
-        toolStatus: 'running',
-        isThinkingExpanded: false,
-        timestamp: new Date().toLocaleTimeString()
-      }]);
-
-      // ensure UI scrolled to show the new assistant placeholder
-      setTimeout(() => scrollToBottom('smooth'), 50);
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          console.log('Received chunk:', chunk);
-          const lines = chunk.split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                console.log('Parsed data event:', data);
-                
-                if (data.type === 'content') {
-                  assistantResponse += data.content;
-
-                  setMessages(prev => prev.map(msg => 
-                    msg.id === assistantMessageId 
-                      ? { 
-                          ...msg, 
-                          content: assistantResponse,
-                          finalAnswer: assistantResponse
-                        }
-                      : msg
-                  ));
-
-                  // keep scrolling while streaming content
-                  setTimeout(() => scrollToBottom('smooth'), 20);
-                } else if (data.type === 'pdf_generated') {
-                  // Event-based PDF notification from backend
-                  const url: string | undefined = data.pdfUrl;
-                  console.log('🔔 PDF_GENERATED EVENT RECEIVED:', {
-                    url,
-                    assistantMessageId,
-                    dataObject: data
-                  });
-                  if (url) {
-                    console.log('✅ Setting PDF URL for message:', assistantMessageId, 'URL:', url);
-                    setMessages(prev => {
-                      const updated = prev.map(msg =>
-                        msg.id === assistantMessageId
-                          ? { ...msg, pdfUrl: url, pdfMessageId: assistantMessageId }
-                          : msg
-                      );
-                      console.log('📝 Messages after PDF update:', updated.find(m => m.id === assistantMessageId));
-                      return updated;
-                    });
-                  } else {
-                    console.error('❌ PDF URL is missing in event:', data);
-                  }
-                  setTimeout(() => scrollToBottom('smooth'), 20);
-                } else if (data.type === 'session_id') {
-                  // Store the sessionId from Claude for future requests
-                  console.log('Session ID received:', data.sessionId);
-                  setCurrentSessionId(data.sessionId);
-                } else if (data.type === 'thinking') {
-                  console.log('Thinking event:', data.content);
-                  toolsPanelRef.current?.appendThinking(data.content);
-                  
-                  const step: ThinkingStep = {
-                    timestamp: new Date().toLocaleTimeString(),
-                    type: 'thinking',
-                    content: data.content
-                  };
-                  thinkingLog.push(step);
-                  
-                  setMessages(prev => prev.map(msg =>
-                    msg.id === assistantMessageId
-                      ? { ...msg, thinkingLog: [...thinkingLog] }
-                      : msg
-                  ));
-
-                  setTimeout(() => scrollToBottom('smooth'), 20);
-                } else if (data.type === 'tool_start') {
-                  console.log('Tool start event:', data.tool);
-                  const cleanToolName = data.tool.replace('mcp__tradelab-mcp-server__', '');
-                  console.log('Marking as executed (tool_start):', cleanToolName);
-                  
-                  const step: ThinkingStep = {
-                    timestamp: new Date().toLocaleTimeString(),
-                    type: 'tool_start',
-                    tool: cleanToolName,
-                    content: `Tool called: ${cleanToolName}`,
-                    startTime: Date.now()
-                  };
-                  thinkingLog.push(step);
-                  
-                  setMessages(prev => prev.map(msg =>
-                    msg.id === assistantMessageId
-                      ? {
-                          ...msg,
-                          currentTool: cleanToolName,
-                          toolStatus: 'running',
-                          thinkingLog: [...thinkingLog]
-                        }
-                      : msg
-                  ));
-                  
-                  toolsPanelRef.current?.markToolExecuted(cleanToolName);
-
-                  setTimeout(() => scrollToBottom('smooth'), 20);
-                } else if (data.type === 'tool_complete') {
-                  console.log('Tool complete event:', data.tool);
-                  const cleanToolName = data.tool.replace('mcp__tradelab-mcp-server__', '');
-                  console.log('Marking as executed (tool_complete):', cleanToolName);
-                  
-                  const lastToolStep = thinkingLog[thinkingLog.length - 1];
-                  const step: ThinkingStep = {
-                    timestamp: new Date().toLocaleTimeString(),
-                    type: 'tool_complete',
-                    tool: cleanToolName,
-                    content: `${cleanToolName} completed`,
-                    startTime: lastToolStep?.startTime,
-                    endTime: Date.now()
-                  };
-                  thinkingLog.push(step);
-                  
-                  setMessages(prev => prev.map(msg =>
-                    msg.id === assistantMessageId
-                      ? {
-                          ...msg,
-                          toolStatus: 'completed',
-                          thinkingLog: [...thinkingLog]
-                        }
-                      : msg
-                  ));
-                  
-                  toolsPanelRef.current?.markToolExecuted(cleanToolName);
-
-                  setTimeout(() => scrollToBottom('smooth'), 20);
-                } else if (data.type === 'image_generated') {
-                  console.log('Image generated event:', data.imagePath);
-                  
-                  setMessages(prev => prev.map(msg =>
-                    msg.id === assistantMessageId
-                      ? { ...msg, image: data.imagePath }
-                      : msg
-                  ));
-
-                  setTimeout(() => scrollToBottom('smooth'), 20);
-                } else if (data.type === 'done') {
-                  console.log('Done event received with tools_used:', data.tools_used);
-                  if (data.tools_used && Array.isArray(data.tools_used) && data.tools_used.length > 0) {
-                    console.log('Marking tools from done event:');
-                    data.tools_used.forEach((toolName: string) => {
-                      const cleanToolName = toolName.replace('mcp__tradelab-mcp-server__', '');
-                      console.log('  - Marking tool as executed:', cleanToolName);
-                      toolsPanelRef.current?.markToolExecuted(cleanToolName);
-                    });
-                  }
-                  
-                  setMessages(prev => prev.map(msg =>
-                    msg.id === assistantMessageId
-                      ? {
-                          ...msg,
-                          currentTool: undefined,
-                          toolStatus: 'idle',
-                          thinkingLog: [...thinkingLog]
-                        }
-                      : msg
-                  ));
-
-                } else if (data.type === 'error') {
-                  throw new Error(data.error);
-                }
-              } catch (parseError) {
-                console.log('Parse error on line:', line, 'Error:', parseError);
-              }
-            }
-          }
-        }
+    e.preventDefault();if(!query.trim()||isLoading||!ready)return;
+    const userQuery=query.trim();addMessage('user',userQuery);setQuery('');setIsLoading(true);toolsPanelRef.current?.resetTools();
+    const id=crypto.randomUUID(),thinkingLog:ThinkingStep[]=[];
+    setMessages(prev=>[...prev,{id,type:'assistant',content:'',timestamp:new Date().toISOString(),toolStatus:'running'}]);
+    const update=(patch:Partial<Message>)=>setMessages(prev=>prev.map(m=>m.id===id?{...m,...patch}:m));
+    let content='',finished=false;
+    try{
+      abortControllerRef.current=new AbortController();
+      const res=await fetch('/api/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:userQuery,sessionId:currentSessionId,provider}),signal:abortControllerRef.current.signal});
+      if(!res.ok){if(res.status===401)window.location.assign('/signin');throw new Error((await res.json()).error||'Request failed.');}
+      if(!res.body)throw new Error('Missing response stream.');
+      for await(const data of readEvents(res.body)){
+        if(data.type==='content'){content+=data.content;update({content,finalAnswer:content});}
+        else if(data.type==='session_id')setCurrentSessionId(data.sessionId);
+        else if(data.type==='image_generated')update({image:data.imagePath});
+        else if(data.type==='pdf_generated')update({pdfUrl:data.pdfUrl,pdfMessageId:id});
+        else if(data.type==='thinking'||data.type==='tool_start'||data.type==='tool_complete'){
+          const tool=data.tool;
+          thinkingLog.push({timestamp:new Date().toISOString(),type:data.type,tool,content:data.type==='thinking'?data.content:data.type==='tool_start'?`Running ${tool}`:data.success?`${tool} completed`:`${tool}: ${data.error}`,startTime:data.type==='tool_start'?Date.now():undefined,endTime:data.type==='tool_complete'?Date.now():undefined});
+          update({thinkingLog:[...thinkingLog],currentTool:data.type==='tool_start'?tool:undefined});
+          if(tool)toolsPanelRef.current?.markToolExecuted(tool);
+        }else if(data.type==='done'){finished=true;update({toolStatus:'idle',currentTool:undefined});}
+        else if(data.type==='error')throw new Error(data.error);
       }
-      
-    } catch (error) {
-      // Don't show error if user deliberately stopped the processing
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Request cancelled by user');
-        return;
-      }
-      console.error('Error:', error);
-      addMessage('assistant', 'Error: ' + (error as Error).message);
-    } finally {
-      setIsLoading(false);
-    }
+      if(!finished)throw new Error('Connection ended before the analysis completed. Reopen this conversation to check saved results.');
+    }catch(error){const message=error instanceof Error&&error.name==='AbortError'?'Analysis stopped.':error instanceof Error?error.message:'Analysis failed.';update({content:content?content+'\n\n'+message:message,toolStatus:'idle',currentTool:undefined});}
+    finally{setIsLoading(false);abortControllerRef.current=null;await refreshConversations();}
   };
 
   // Define the prompt suggestions for the initial screen
@@ -551,7 +353,7 @@ export default function ChatPage() {
             {messages.length > 0 && (
               <button
                 onClick={handleNewConversation}
-                disabled={isLoading}
+                disabled={isLoading || !ready}
                 className="px-4 py-2 text-sm font-medium rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2"
                 style={{
                   borderColor: THEME_COLOR,
@@ -575,6 +377,13 @@ export default function ChatPage() {
           </div>
         </div>
 
+        <div className="flex flex-wrap items-center gap-3 px-6 py-2 border-b bg-slate-50 text-xs">
+          <span role="status" className="mr-auto text-slate-600">{notice}</span>
+          <label>AI <select aria-label="AI provider" value={provider} onChange={e=>setProvider(e.target.value)} disabled={isLoading || !ready} className="border rounded p-1 bg-white"><option value="auto">Auto fallback</option>{['claude','groq','gemini'].map(name=><option key={name} value={name} disabled={!providers.some(p=>p.name===name)}>{name}{providers.some(p=>p.name===name)?'':' (key needed)'}</option>)}</select></label>
+          <select aria-label="Saved conversations" value={currentSessionId||''} disabled={isLoading || !ready} onChange={e=>loadConversation(e.target.value)} className="border rounded p-1 bg-white max-w-48"><option value="">Saved conversations</option>{conversations.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select>
+          <a href="/upload" className="underline">Files</a>
+          <button onClick={async()=>{await fetch('/api/session',{method:'DELETE'});localStorage.removeItem('tradelab_session_id');window.location.assign('/signin');}} className="underline">Sign out</button>
+        </div>
         {/* Messages Area */}
         <div ref={messagesContainerRef} className={`flex-1 p-6 overflow-y-auto flex flex-col gap-4 ${messages.length === 0 ? 'justify-center items-center p-8' : ''}`}>
           {messages.length === 0 ? (
@@ -622,13 +431,13 @@ export default function ChatPage() {
                     onBlur={(e) => {
                       e.target.style.boxShadow = query.trim() ? `inset 0 0 0 2px ${THEME_COLOR}` : 'none';
                     }}
-                    disabled={isLoading}
+                    disabled={isLoading || !ready}
                     aria-label="Chat message input"
                   />
                   <button
                     type={isLoading ? "button" : "submit"}
                     onClick={isLoading ? handleStopProcessing : undefined}
-                    disabled={!isLoading && !query.trim()}
+                    disabled={!ready || (!isLoading && !query.trim())}
                     className="text-white px-6 py-4 rounded-lg border-none font-semibold cursor-pointer transition-all duration-200 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0C499C]"
                     style={{
                       backgroundColor: isLoading ? '#EF4444' : (!query.trim() ? '#7FA8D1' : THEME_COLOR),
@@ -640,7 +449,7 @@ export default function ChatPage() {
                     {isLoading ? 'Stop' : 'Start Analysis'}
                   </button>
                 </form>
-                <p className="text-center text-xs text-slate-400 mt-3">TradeLab Assistant uses proprietary analysis tools.</p>
+                <p className="text-center text-xs text-slate-400 mt-3">Synthetic demo data. Answers use shared MCP analysis tools.</p>
               </div>
             </div>
             // END OF REDESIGNED INITIAL UI
@@ -943,13 +752,13 @@ export default function ChatPage() {
                   e.currentTarget.style.boxShadow = query.trim() ? `0 0 0 3px rgba(12, 73, 156, 0.1)` : 'none';
                   e.currentTarget.style.borderColor = query.trim() ? THEME_COLOR : '#E5E7EB';
                 }}
-                disabled={isLoading}
+                disabled={isLoading || !ready}
                 aria-label="Chat message input"
               />
               <button
                 type={isLoading ? "button" : "submit"}
                 onClick={isLoading ? handleStopProcessing : undefined}
-                disabled={!isLoading && !query.trim()}
+                disabled={!ready || (!isLoading && !query.trim())}
                 className="text-white px-4 py-2 rounded-lg border-none font-medium cursor-pointer transition-all duration-200 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0C499C]"
                 style={{
                   backgroundColor: isLoading ? '#EF4444' : (!query.trim() ? '#7FA8D1' : THEME_COLOR),

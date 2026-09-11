@@ -1,33 +1,4 @@
-import { getPrompts, updatePrompt } from '@/lib/prompts';
-
-export async function GET(request: Request) {
-  try {
-    const prompts = getPrompts();
-    return Response.json(prompts);
-  } catch (error) {
-    console.error('Error fetching prompts:', error);
-    return Response.json({ error: 'Failed to fetch prompts' }, { status: 500 });
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const { key, value } = await request.json();
-
-    if (!key || !value) {
-      return Response.json(
-        { error: 'Missing key or value' },
-        { status: 400 }
-      );
-    }
-
-    updatePrompt(key, value);
-    return Response.json({ success: true, key, value });
-  } catch (error) {
-    console.error('Error updating prompt:', error);
-    return Response.json(
-      { error: 'Failed to update prompt' },
-      { status: 500 }
-    );
-  }
-}
+import {getPrompts,updatePrompt} from '@/lib/prompts';import {requireOwner,checkOrigin,httpError,jsonBody} from '@/lib/runtime/auth';
+export const runtime='nodejs';export const dynamic='force-dynamic';
+export async function GET(req:Request){try{return Response.json(getPrompts(requireOwner(req)),{headers:{'cache-control':'no-store'}});}catch(e){return httpError(e);}}
+export async function POST(req:Request){try{checkOrigin(req);const owner=requireOwner(req),{key,value}=await jsonBody(req);if(typeof key!=='string'||typeof value!=='string')throw new Error('Invalid prompt.');updatePrompt(key,value,owner);return Response.json({success:true});}catch(e){return httpError(e);}}

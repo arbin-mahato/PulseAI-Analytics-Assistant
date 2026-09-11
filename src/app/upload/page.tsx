@@ -1,6 +1,5 @@
 "use client";
 
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import FileUpload from "@/components/FileUpload";
@@ -16,13 +15,14 @@ interface UploadedFile {
 }
 
 export default function UploadPage() {
-  const sessionData = useSession();
-  const session = sessionData?.data;
-  const status = sessionData?.status || "loading";
+  const [status, setStatus] = useState("loading");
+  const session = status === "authenticated";
   const router = useRouter();
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingUrl, setLoadingUrl] = useState<string | null>(null);
+
+  useEffect(() => { fetch("/api/session").then(r => setStatus(r.ok ? "authenticated" : "unauthenticated")); }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -52,31 +52,7 @@ export default function UploadPage() {
   };
 
   const handleViewFile = async (file: UploadedFile) => {
-    if (file.isPublic) {
-      logger.info({ fileId: file.id, type: "public" }, "Opening public file");
-      window.open(file.url, "_blank");
-      return;
-    }
-
-    setLoadingUrl(file.id);
-    try {
-      logger.info({ fileId: file.id }, "Fetching signed URL for private file");
-      const response = await fetch(`/api/files/${file.id}`);
-      const data = await response.json();
-
-      if (response.ok) {
-        logger.info({ fileId: file.id }, "Signed URL generated");
-        window.open(data.url, "_blank");
-      } else {
-        logger.warn({ fileId: file.id, error: data.error }, "Failed to get signed URL");
-        alert(`Error: ${data.error}`);
-      }
-    } catch (error) {
-      logger.error({ err: error, fileId: file.id }, "Error getting file URL");
-      alert("Failed to generate file URL");
-    } finally {
-      setLoadingUrl(null);
-    }
+    window.open(file.url, "_blank", "noopener,noreferrer");
   };
 
   if (status === "loading" || loading) {
@@ -100,9 +76,10 @@ export default function UploadPage() {
           File Upload
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mb-8">
-          Upload files as public (anyone can access) or private (15 min auth)
+          Store files as public (anyone can access) or private (only your workspace)
         </p>
 
+        <p className="mb-4 text-sm">Uploads are stored in your file library. Analytics uses the seeded trading database.</p>
         <FileUpload onUploadSuccess={fetchFiles} />
 
         <div className="mt-12">

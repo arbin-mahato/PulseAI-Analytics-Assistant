@@ -1,0 +1,3 @@
+import {requireOwner,httpError} from '@/lib/runtime/auth';import {conversation,listConversations} from '@/lib/runtime/store';
+export const runtime='nodejs';export const dynamic='force-dynamic';
+export async function GET(req:Request){try{const owner=requireOwner(req),id=new URL(req.url).searchParams.get('id');if(id){const c=conversation(owner,id);return Response.json({id:c.id,title:c.title,messages:JSON.parse(c.messages)},{headers:{'cache-control':'no-store'}});}return Response.json({conversations:listConversations(owner)},{headers:{'cache-control':'no-store'}});}catch(e){return httpError(e);}}

@@ -8,7 +8,7 @@ export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () =
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isPublic, setIsPublic] = useState(true);
+  const [isPublic, setIsPublic] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -109,7 +109,7 @@ export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () =
             <span className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
               🔒 Private
               <span className="block text-xs text-gray-500 dark:text-gray-400">
-                Requires auth (15 min)
+                Only your workspace
               </span>
             </span>
           </label>
@@ -125,6 +125,7 @@ export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () =
           <input
             id="file-input"
             type="file"
+            accept=".csv,.json,.txt,.pdf,.png,.jpg,.jpeg"
             onChange={handleFileChange}
             className="block w-full text-sm text-gray-900 dark:text-gray-300 
                      border border-gray-300 dark:border-gray-600 rounded-lg 

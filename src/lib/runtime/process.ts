@@ -25,7 +25,7 @@ export async function runProcess(command: string, args: string[], options: {
 export async function pythonJson<T>(script: string, payload: unknown, signal?: AbortSignal): Promise<T> {
   const { stdout } = await runProcess(pythonBin(), [path.join(process.cwd(), 'worker', script)], {
     input: JSON.stringify(payload), signal, timeout: 30000,
-    env: { PATH: process.env.PATH, LANG: 'C.UTF-8', PYTHONIOENCODING: 'utf-8' },
+    env: { PATH: process.env.PATH, LANG: 'C.UTF-8', PYTHONIOENCODING: 'utf-8', NODE_ENV: process.env.NODE_ENV },
   });
   const result = JSON.parse(stdout);
   if (result.error) throw new Error(result.error);
