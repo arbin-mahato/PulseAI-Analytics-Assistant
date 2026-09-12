@@ -1,193 +1,96 @@
-# PulseAI Analytics Platform
+# TradeLab: Claude, Groq and Gemini with shared MCP analytics
 
-Analytics platform built with Next.js and Claude Agent SDK that processes trading analytics queries using an autonomous AI agent with MCP (Model Context Protocol) tool calling architecture.
+Ask a question → the selected AI calls the original seven MCP tool names → SQL calculates results → TradeLab returns an answer, table, chart and/or downloadable PDF.
 
-## Architecture
+The app uses the standard MCP TypeScript SDK with a client/server connection. Only the provider adapters differ. Database calculations, Python chart rendering, PDF generation, storage and the chat interface are shared.
 
-### Frontend (Next.js)
-- **Web Interface**: React-based chat interface for interactive analytics
-- **Real-time Chat**: Streaming responses from the AI agent
-- **Show Thinking Panel**: Collapsible panel displaying detailed AI reasoning
+## Start locally
 
-### Backend Agent System
-- **TradeLab Agent**: Autonomous analytical AI system using Claude Agent SDK
-- **MCP Server**: Custom Model Context Protocol server with specialized tools
-- **Database Integration**: DuckDB metric store
+Install **Node.js 24** and **Python 3.9–3.12** (3.11 recommended), then:
 
-### Claude Agent SDK Integration
-- **Streaming Queries**: Real-time response processing
-- **Tool Calling**: Structured tool execution with MCP
-- **Thinking Tags**: Detailed reasoning captured separately from final answers
-
-## Setup
-
-### Prerequisites
-- Node.js 18+
-- npm or yarn
-- DuckDB
-- Python 3 (for chart generation)
-
-### Installation
-
-1. **Install dependencies:**
-```bash
-npm install
+```sh
+npm ci
+npm run setup
 ```
 
-2. **Configure environment variables:**
-```bash
-cp .env.example .env.local
-# Configure your Claude API credentials
+Add at least one key to `.env.local`:
+
+```dotenv
+GROQ_API_KEY=your_key
+# GEMINI_API_KEY=your_key
+# ANTHROPIC_API_KEY=your_key
 ```
 
-3. **Setup database:**
-```bash
-npm run build-db
-```
-
-4. **Start development server:**
-```bash
+```sh
 npm run dev
 ```
 
-## Usage
+Open http://localhost:3000. Local development creates a private browser session automatically. For a password-protected workspace, set `APP_ACCESS_PASSWORD` and restart. All people using that password share one workspace. Without a password, each browser has its own conversations/files; losing its cookie loses access to them.
 
-### Web Interface
-Access the web application at `http://localhost:3000/chat`
+No GCP, Postgres, Claude subscription or ClickHouse account is required. Keep `.env.local` private. Provider keys stay on the server. The existing `.env.local` is preserved by setup.
 
-### Example Queries
-- "Show me the top 10 users by trading volume"
-- "Calculate win rates for all active traders"
-- "Create a chart showing trading patterns"
+## What is replicated
 
-## Features
+| Original workflow | Implementation in this copy |
+|---|---|
+| Chat with ongoing analysis status | Existing chat UI, robust SSE, stop button, saved conversations |
+| Claude agent | Shared bounded agent loop; native Claude Messages adapter |
+| Groq / Gemini alternative | Native provider adapters, automatic missing-key fallback, rate-limit recovery |
+| MCP analysis tools | Standard MCP SDK client/server using an in-memory transport; seven original tool names |
+| Metric queries | All seven metric tables, original column names and typed values |
+| Raw activity queries | Linked users, orders, fills, events and logs |
+| Python charts | Validated declarative Python recipes rendered with pandas/matplotlib/seaborn |
+| PDF reports | Local ReportLab renderer, tables, INR font and optional charts; no additional LLM call |
+| Image / PDF / CSV / JSON downloads | Local files with owner-checked URLs and persistent metadata |
+| File uploads | Public/private file library; uploads do not automatically change the analytics database |
+| Sign in | Workspace password; Google OAuth/GCP configuration is no longer required |
+| Deployment | Docker, persistent Render service, optional Vercel API rewrites, GitHub CI |
 
-### AI-Powered Analytics
-- **Natural Language Processing**: Understands trading analytics queries
-- **Schema-Aware**: Automatically maps queries to database structure
-- **Multi-format Output**: CSV, JSON, Python scripts, and visualizations
-- **Image Generation**: Chart creation with matplotlib/seaborn
-- **Show Thinking**: Detailed reasoning display in collapsible panel
+The application is a functional replication, not a byte-for-byte clone. Claude Agent SDK orchestration was replaced by a provider-independent loop; Claude remains available through its native API. Arbitrary model-authored Python is intentionally replaced by constrained chart recipes. Old Cloud Run workflows are archived under `docs/legacy-workflows`; they no longer auto-deploy.
 
-### Tool Ecosystem
-- **Schema Retrieval**: Database schema and documentation
-- **SQL Generation**: Query creation and optimization
-- **Data Execution**: CSV and JSON output formats
-- **Python Integration**: Script generation and execution
-- **Image Generation**: Chart creation saved to `public/output/`
+**The included dataset is synthetic.** It covers the original schema and metrics, but does not contain the original company's private customer data or real market prices. Different models can produce different SQL choices and wording. Exact original business numbers or identical Claude answer quality cannot be reproduced without the original data and comparative evaluations.
 
-### Web Features
-- **Real-time Chat**: Streaming responses with tool execution visibility
-- **Image Rendering**: Automatic detection and display of generated charts
-- **Thinking Panel**: Full AI reasoning separate from final answers
-- **Responsive Design**: Mobile-friendly interface
+## Try these questions
 
-## File Structure
+- Show the top 5 users by 30-day trading volume. Include a table and a bar chart.
+- Compare the win rate and realized PnL of the 10 most active traders over 30 days.
+- Which accounts have the highest rejection rates? Show counts as well as percentages.
+- Show the daily realized PnL over the last 30 days for DEMO0001.
+- Turn this analysis into a PDF report and include the chart.
 
-```
-src/
-├── app/
-│   ├── api/chat/           # Chat API endpoint
-│   ├── chat/               # Chat interface
-│   └── components/         # React components
-├── lib/
-│   ├── tools/              # MCP tool implementations
-│   ├── imageUtils.ts       # Image detection utilities
-│   └── prompts.ts          # Agent prompts
-└── types/
-    └── claude-agent-sdk.d.ts
+Free API limits apply to every model call, so one question may need several calls and temporary waits. Auto mode tries configured providers in `LLM_FALLBACK_ORDER` (default Claude → Groq → Gemini). Selecting a provider makes it the first choice, with fallback still enabled. Missing keys are skipped. Both Groq and Gemini are supported; neither is a fake/mock fallback. A second key helps availability, but cannot guarantee unlimited free usage.
 
-agent/
-└── tradelab_agent.ts       # Main agent implementation
+The tested Groq default is `qwen/qwen3.8-27b` with a 768-token output budget per call. The table/chart/PDF workflow completed with a real Groq key, including automatic quota waits. Models and account limits can change; use `GROQ_MODEL` or `GEMINI_MODEL` to override the defaults. Larger analyses can exceed free-tier limits even when small questions work.
 
-mcp_servers/
-└── tradelab_mcp_server.ts  # MCP server configuration
+## Dataset and metrics
 
-db/
-└── metric_store.duckdb     # DuckDB database
+`npm run build-db` generates linked synthetic activity and computes metrics from it; metrics are not independently randomized. The default snapshot has 100 accounts, roughly 17,500 orders, 16,000 fills and 164,000 activity events. Exact counts depend on the seed/date.
 
-public/
-└── output/                 # Generated charts and images
-
-script/
-└── build_db.js             # Database build script
-```
-### Database Setup
-```bash
-npm run build-db    # Build from source data
+```sh
+npm run build-db -- --seed 42 --users 100 --as-of 2026-09-11
 ```
 
-## Agent Pipeline
+This explicitly replaces the local warehouse, not saved conversations. Stop active analysis before reseeding. Existing answers/downloads keep their original values and should not be compared to a new snapshot without accounting for the date change. Container startup seeds only when the database does not exist.
 
-The TradeLab Agent follows this analytical pipeline:
+See [DATA.md](docs/DATA.md) for schema, formulas, units, real-data requirements and optional ClickHouse seeding. The generated manifest records the snapshot date and seed. Rolling windows use that date via `as_of()`, so demonstrations do not silently become empty as time passes.
 
-1. **Intent Identification**: Parse user query and determine requirements
-2. **Schema Retrieval**: Fetch database schema and documentation
-3. **SQL Generation**: Create optimized queries based on schema mapping
-4. **Execution Decision**: Choose between CSV or JSON output format
-5. **Query Execution**: Run SQL and capture results
-6. **Post-processing**: Generate Python scripts for complex analysis
-7. **Final Delivery**: Present findings with evidence
+## Hosting
 
-## MCP Tools
+Start with the **whole application on Render**. The provided `render.yaml` uses a paid service plus a persistent disk for the database, conversations, uploads, charts and PDFs. [DEPLOYMENT.md](docs/DEPLOYMENT.md) has the steps and a free disposable-demo alternative.
 
-### Core Tools
-- `getSchema`: Database schema and documentation retrieval
-- `sql_query_writer`: SQL query file generation
-- `sql_query_executor`: Execute queries, return CSV
-- `json_sql_query_executor`: Execute queries, return JSON
-- `python_script_writer`: Generate Python analysis scripts
-- `python_script_executor`: Execute Python scripts with data
+Vercel can host the frontend with `/api/*` rewritten to Render. Python, SQLite, DuckDB and generated files must run on Render, not Vercel functions. Render's free filesystem is temporary, so it cannot provide permanent local storage; restarting can remove conversations and downloads. No deployment is created merely by running local setup.
 
-## API Endpoints
+## Verification
 
-- `POST /api/chat` - Process analytics queries with streaming responses
-
-## Development
-
-### Scripts
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run build-db` - Rebuild database
-
-### Tech Stack
-- **Frontend**: Next.js, React, TypeScript
-- **Backend**: Node.js, DuckDB
-- **AI**: Claude Agent SDK, Anthropic Claude
-- **Styling**: Tailwind CSS with Neo Blue Pro theme
-- **Database**: DuckDB
-- **Charts**: Python matplotlib/seaborn
-
-## Image Generation
-
-Python scripts automatically save charts to `public/output/` directory:
-- Uses `os.getcwd()` for project root detection
-- Creates timestamped filenames: `chart_<timestamp>.png`
-- Frontend automatically detects and displays latest images
-
-## PDF Generation (Single Source of Truth)
-
-PDF reports produced by the Anthropic PDF skill are stored exclusively in `public/generated_pdfs/`.
-
-Rationale:
-- Eliminates duplicate storage (previously copied to both `public/generated_pdfs/` and `public/output/`).
-- Simplifies frontend logic: all PDF URLs resolve as `/generated_pdfs/<filename>.pdf`.
-- Reduces maintenance and disk usage.
-
-Frontend detection looks for message lines containing:
+```sh
+npm test              # provider contracts, real MCP calls, data integrity, sessions and SSE
+npm run typecheck
+npm run lint
+npm run build
+npm run test:browser  # after build; install Chromium with npx playwright install chromium
+npm run test:live     # optional; spends configured provider quota using synthetic data
 ```
-File: <name>.pdf
-Location: public/generated_pdfs/<name>.pdf
-```
-and builds the served URL by stripping the leading `public/`.
 
-Legacy messages referencing `public/output/` are automatically remapped to the new directory.
+`test:live` saves its results under ignored `eval_outputs/`. Its default question checks for a returned answer, query-result JSON, chart and PDF. Claude and Gemini require their own keys for live verification. Mock provider tests verify request/response contracts but do not measure model answer quality. See [VALIDATION.md](docs/VALIDATION.md) for completed checks and untested deployment paths.
 
-If you migrate older stored PDFs, move them into `public/generated_pdfs/` and update any hard-coded references.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+See [IMPLEMENTATION.md](docs/IMPLEMENTATION.md) for the code map, commit responsibilities and remaining operational limits.
