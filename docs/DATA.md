@@ -55,6 +55,8 @@ npm run seed:clickhouse
 
 The loader copies the **same** raw snapshot used to calculate local metrics. It verifies row counts, skips an exact existing snapshot and refuses to overwrite pre-existing tables. It does not silently use the ClickHouse credentials in `.env.local`.
 
+Linux CI verifies this path against ClickHouse 25.8, including repeat seeding, all five table counts and joined fill/PnL totals. Local metric queries continue to use DuckDB when ClickHouse is enabled. See [the verification record](VALIDATION.md).
+
 Set the app configuration and restart:
 
 ```dotenv
