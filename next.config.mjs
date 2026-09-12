@@ -1,9 +1,8 @@
-import type { NextConfig } from "next";
 const backend = process.env.TRADELAB_BACKEND_URL;
 if (backend && !/^https?:\/\//.test(backend))
   throw new Error("TRADELAB_BACKEND_URL must be an HTTP(S) URL.");
-const config: NextConfig = {
-  output: "standalone",
+/** @type {import("next").NextConfig} */
+const config = {
   distDir: ".tradelab-build",
   outputFileTracingExcludes: {
     "*": [

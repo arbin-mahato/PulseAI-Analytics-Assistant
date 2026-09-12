@@ -4,17 +4,17 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build
+RUN npm run build && npm prune --omit=dev --ignore-scripts && rm -rf .tradelab-build/cache
 
 FROM node:24-bookworm-slim AS runner
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv libgomp1 ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt ./
 RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
-COPY --from=builder /app/.tradelab-build/standalone ./
-COPY --from=builder /app/.tradelab-build/static ./.tradelab-build/static
+COPY --from=builder /app/.tradelab-build ./.tradelab-build
+COPY --from=builder /app/node_modules ./node_modules
+COPY package.json next.config.mjs ./
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
 COPY worker ./worker
 COPY assets ./assets
 COPY script ./script

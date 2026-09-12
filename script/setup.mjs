@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
+import dotenv from "dotenv";
 function run(command, args) {
   const r = spawnSync(command, args, { stdio: "inherit" });
   if (r.error) throw r.error;
@@ -8,6 +9,8 @@ function run(command, args) {
 if (Number(process.versions.node.split(".")[0]) < 24)
   throw new Error("Use Node.js 24 or newer.");
 if (!fs.existsSync(".env.local")) fs.copyFileSync(".env.example", ".env.local");
+dotenv.config({ path: ".env.local", quiet: true });
+dotenv.config({ quiet: true });
 if (!fs.existsSync(".venv"))
   run(process.env.PYTHON_SETUP_BIN || "python3", ["-m", "venv", ".venv"]);
 const python =

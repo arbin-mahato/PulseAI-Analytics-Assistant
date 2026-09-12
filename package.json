@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
-    "start": "node script/start.mjs",
+    "start": "next start",
     "chat:web": "next dev",
     "chat:cli": "node --import tsx agent/tradelab_agent_cli.ts",
     "cli": "node --import tsx agent/tradelab_agent_cli.ts",
