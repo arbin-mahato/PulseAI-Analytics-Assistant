@@ -1,6 +1,6 @@
 import { warehousePath } from "../runtime/config";
 import { pythonJson } from "../runtime/process";
-import metrics from "../../content/db/metrics.json";
+import metrics from "../../content/db/metrics.json" with { type: "json" };
 
 export type QueryResult = {
   columns: { name: string; type: string }[];

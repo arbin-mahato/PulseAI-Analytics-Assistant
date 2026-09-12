@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import FileUpload from "@/components/FileUpload";
@@ -20,9 +21,13 @@ export default function UploadPage() {
   const router = useRouter();
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingUrl, setLoadingUrl] = useState<string | null>(null);
+  const [loadingUrl] = useState<string | null>(null);
 
-  useEffect(() => { fetch("/api/session").then(r => setStatus(r.ok ? "authenticated" : "unauthenticated")); }, []);
+  useEffect(() => {
+    fetch("/api/session").then((r) =>
+      setStatus(r.ok ? "authenticated" : "unauthenticated"),
+    );
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -76,10 +81,14 @@ export default function UploadPage() {
           File Upload
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mb-8">
-          Store files as public (anyone can access) or private (only your workspace)
+          Store files as public (anyone can access) or private (only your
+          workspace)
         </p>
 
-        <p className="mb-4 text-sm">Uploads are stored in your file library. Analytics uses the seeded trading database.</p>
+        <p className="mb-4 text-sm">
+          Uploads are stored in your file library. Analytics uses the seeded
+          trading database.
+        </p>
         <FileUpload onUploadSuccess={fetchFiles} />
 
         <div className="mt-12">
@@ -119,7 +128,9 @@ export default function UploadPage() {
                       <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-300">
                         <div className="flex items-center gap-2">
                           {file.isPublic ? "🌍" : "🔒"}
-                          <span className="truncate max-w-xs">{file.filename}</span>
+                          <span className="truncate max-w-xs">
+                            {file.filename}
+                          </span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -157,12 +168,12 @@ export default function UploadPage() {
         </div>
 
         <div className="mt-8">
-          <a
+          <Link
             href="/"
             className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
           >
             ← Back to Home
-          </a>
+          </Link>
         </div>
       </div>
     </div>
