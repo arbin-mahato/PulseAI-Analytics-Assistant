@@ -21,7 +21,8 @@
     "test:python": "node script/test-python.mjs",
     "test:live": "node --import tsx script/live-smoke.ts",
     "seed:clickhouse": "node script/populate_clickhouse_data.js",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "test:clickhouse": "node --import tsx tests/clickhouse.integration.ts"
   },
   "dependencies": {
     "@clickhouse/client": "^1.13.0",

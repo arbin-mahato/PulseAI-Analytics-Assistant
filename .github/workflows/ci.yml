@@ -42,3 +42,25 @@ jobs:
       - name: Stop test container
         if: always()
         run: docker rm -f tradelab-ci || true
+      - name: Start optional ClickHouse demo
+        run: |
+          docker run -d --name tradelab-clickhouse -p 127.0.0.1:8123:8123 -e CLICKHOUSE_USER=tradelab -e CLICKHOUSE_PASSWORD=local-demo-only -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 clickhouse/clickhouse-server:25.8
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8123/ping; then exit 0; fi
+            sleep 2
+          done
+          docker logs tradelab-clickhouse
+          exit 1
+      - name: Seed and verify the same snapshot in ClickHouse
+        env:
+          ANALYTICS_BACKEND: clickhouse
+          CLICKHOUSE_URL: http://localhost:8123
+          CLICKHOUSE_USER: tradelab
+          CLICKHOUSE_PASSWORD: local-demo-only
+        run: |
+          npm run seed:clickhouse
+          npm run seed:clickhouse
+          npm run test:clickhouse
+      - name: Stop optional ClickHouse demo
+        if: always()
+        run: docker rm -f tradelab-clickhouse || true
