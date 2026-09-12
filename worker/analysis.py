@@ -1,6 +1,6 @@
 """Trusted chart/report renderer. Model scripts are declarative recipes, never exec'ed."""
 
-import ast, html, json, os, sys
+import ast, csv, html, json, re, sys
 from pathlib import Path
 
 CHARTS = {"bar", "line", "scatter", "histogram", "pie", "box", "heatmap"}
@@ -138,11 +138,9 @@ def pdf(request):
         Table,
         TableStyle,
         Image,
-        KeepTogether,
     )
     from reportlab.lib import colors
     from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.lib.enums import TA_LEFT
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
 
@@ -165,6 +163,28 @@ def pdf(request):
     def text(s):
         return html.escape(s).replace("**", "")
 
+    def add_table(rows):
+        width = max(map(len, rows))
+        rows = [r + [""] * (width - len(r)) for r in rows]
+        table = Table(
+            [[Paragraph(text(str(c)), styles["BodyText"]) for c in r] for r in rows],
+            colWidths=[480 / width] * width,
+            repeatRows=1,
+            hAlign="LEFT",
+        )
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e7eef8")),
+                    ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#cbd5e1")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        story.extend([table, Spacer(1, 12)])
+
     while i < len(lines):
         line = lines[i].strip()
         if line.startswith("|"):
@@ -175,26 +195,7 @@ def pdf(request):
                     rows.append(cells)
                 i += 1
             if rows:
-                width = max(map(len, rows))
-                rows = [r + [""] * (width - len(r)) for r in rows]
-                table = Table(
-                    [[Paragraph(text(c), styles["BodyText"]) for c in r] for r in rows],
-                    colWidths=[480 / width] * width,
-                    repeatRows=1,
-                    hAlign="LEFT",
-                )
-                table.setStyle(
-                    TableStyle(
-                        [
-                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e7eef8")),
-                            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#cbd5e1")),
-                            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                            ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                        ]
-                    )
-                )
-                story.extend([table, Spacer(1, 12)])
+                add_table(rows)
             continue
         if line:
             heading = line.startswith("#")
@@ -207,6 +208,67 @@ def pdf(request):
         else:
             story.append(Spacer(1, 5))
         i += 1
+    table_metadata = []
+
+    def display(value, column):
+        if value is None:
+            return "—"
+        if isinstance(value, str) and re.fullmatch(r"-?\d+\.\d+", value):
+            value = float(value)
+        if isinstance(value, float):
+            money = re.search(
+                r"volume|pnl|amount|cash|balance|deposit|withdrawal|price|mtm|turnover",
+                column,
+                re.I,
+            )
+            ratio = re.search(r"rate|ratio|share|pct|percent|change", column, re.I)
+            return f"{value:,.2f}" if money and not ratio else f"{value:.8g}"
+        if isinstance(value, int) and not isinstance(value, bool):
+            return f"{value:,}"
+        return str(value)
+
+    for data_file in request.get("data_files", []):
+        source = Path(data_file)
+        with source.open(newline="", encoding="utf-8") as stream:
+            rows = (
+                list(csv.DictReader(stream))
+                if source.suffix == ".csv"
+                else json.load(stream)
+            )
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise ValueError("Report data must contain query result records.")
+        total = len(rows)
+        rows = rows[:200]
+        table_metadata.append(
+            {"rows": len(rows), "total_rows": total, "complete": total <= 200}
+        )
+        story.append(Paragraph("Verified query results", styles["Heading2"]))
+        if not rows:
+            story.append(Paragraph("The query returned no rows.", styles["BodyText"]))
+            continue
+        columns = list(rows[0])
+        # Split wide results into readable groups; retain the row number across groups.
+        for offset in range(0, len(columns), 6):
+            group = columns[offset : offset + 6]
+            table = [["Row"] + group] + [
+                [str(i + 1)] + [display(row.get(c), c) for c in group]
+                for i, row in enumerate(rows)
+            ]
+            add_table(table)
+        if total > len(rows):
+            story.append(
+                Paragraph(
+                    f"Showing {len(rows)} of {total} rows. The CSV/JSON download contains the complete query result.",
+                    styles["BodyText"],
+                )
+            )
+        story.append(
+            Paragraph(
+                "Values come directly from the saved query result. Monetary values are rounded for display; rate fields retain their query units.",
+                styles["BodyText"],
+            )
+        )
+
     for image in request.get("images", []):
         from reportlab.lib.utils import ImageReader
 
@@ -238,7 +300,7 @@ def pdf(request):
         author="TradeLab",
     )
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
-    return {"files": [request["output"]]}
+    return {"files": [request["output"]], "tables": table_metadata}
 
 
 if __name__ == "__main__":

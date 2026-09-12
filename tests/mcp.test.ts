@@ -7,7 +7,7 @@ import {
   connectMcp,
   type ToolOutput,
 } from "../mcp_servers/tradelab_mcp_server";
-import { createRun } from "../src/lib/runtime/store";
+import { createRun, artifact } from "../src/lib/runtime/store";
 
 process.env.METRIC_STORE_DB_PATH = path.resolve("data/warehouse.duckdb");
 process.env.TRADELAB_DATA_DIR = fs.mkdtempSync(
@@ -93,6 +93,52 @@ test("all seven tools execute through actual MCP, including charts and PDFs with
     });
     assert.equal(pdf.success, true, pdf.error);
     assert.ok(pdf.artifacts![0].size > 1000);
+    assert.deepEqual(pdf.data.tables, [
+      { rows: 5, total_rows: 5, complete: true },
+    ]);
+    const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const document = await getDocument({
+      data: new Uint8Array(
+        fs.readFileSync(artifact(pdf.artifacts![0].id)!.local_path),
+      ),
+      useSystemFonts: true,
+    }).promise;
+    let reportText = "";
+    for (let page = 1; page <= document.numPages; page++) {
+      const content = await (await document.getPage(page)).getTextContent();
+      reportText += content.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ");
+    }
+    await document.destroy();
+    for (const row of json.data.rows as {
+      client_id: string;
+      total_volume_30d: number;
+    }[]) {
+      assert.ok(
+        reportText.includes(row.client_id),
+        `PDF omitted ${row.client_id}`,
+      );
+      assert.ok(
+        reportText.includes(
+          row.total_volume_30d.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }),
+        ),
+        "PDF omitted an exact verified amount",
+      );
+    }
+    assert.equal(
+      (
+        await call("pdfGenerator", {
+          content: "Private data test",
+          data_ids: ["unknown-artifact"],
+        })
+      ).success,
+      false,
+    );
+
     assert.equal(
       (
         await call("python_script_writer", {

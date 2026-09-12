@@ -242,11 +242,12 @@ export function createMcpServer(ctx: RunContext) {
     "pdfGenerator",
     {
       description:
-        "Generate a downloadable PDF report locally from the completed analysis. Supports Markdown headings/tables and optional image artifact IDs from this conversation. No Claude key needed. Include the actual verified findings; the renderer never invents data.",
+        "Generate a PDF locally. Supply a SHORT prose summary, not a copied table. The renderer automatically embeds the latest verified query result (up to 200 rows), or selected data_ids, plus requested image_ids. It returns row counts and whether the table is complete. Do not claim truncation unless that result says so.",
       inputSchema: {
         content: z.string().min(1).max(60000),
         filename: z.string().max(100).optional(),
         image_ids: z.array(z.string()).max(5).optional(),
+        data_ids: z.array(z.string()).max(3).optional(),
       },
     },
     (args) =>
@@ -261,10 +262,30 @@ export function createMcpServer(ctx: RunContext) {
             throw new Error("Image is not available in this conversation.");
           return a.local_path;
         });
+        const selected =
+          args.data_ids ??
+          stateDb()
+            .prepare(
+              "SELECT id FROM artifacts WHERE owner=? AND session_id=? AND mime IN ('text/csv','application/json') ORDER BY created DESC LIMIT 1",
+            )
+            .all(ctx.owner, ctx.sessionId)
+            .map((a) => String(a.id));
+        const data_files = selected.map((id) => {
+          const a = stateDb()
+            .prepare(
+              "SELECT local_path FROM artifacts WHERE id=? AND owner=? AND session_id=? AND mime IN ('text/csv','application/json')",
+            )
+            .get(id, ctx.owner, ctx.sessionId);
+          if (!a)
+            throw new Error("Data file is not available in this conversation.");
+          return ensureInside(dataRoot(), String(a.local_path));
+        });
         const output = generated("pdf");
-        await pythonJson(
+        const report = await pythonJson<{
+          tables: { rows: number; total_rows: number; complete: boolean }[];
+        }>(
           "analysis.py",
-          { action: "pdf", content: args.content, output, images },
+          { action: "pdf", content: args.content, output, images, data_files },
           ctx.signal,
         );
         const filename =
@@ -272,6 +293,7 @@ export function createMcpServer(ctx: RunContext) {
             .replace(/[^a-zA-Z0-9_.-]/g, "_")
             .replace(/\.pdf$/i, "") + ".pdf";
         return {
+          data: report,
           artifacts: [
             registerArtifact(ctx, output, filename, "application/pdf"),
           ],

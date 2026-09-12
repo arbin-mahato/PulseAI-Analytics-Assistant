@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
-import { pythonBin } from "./config";
+import fs from "node:fs";
+import { pythonBin, dataRoot } from "./config";
 
 export async function runProcess(
   command: string,
@@ -73,6 +74,8 @@ export async function pythonJson<T>(
   payload: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
+  const cache = path.join(dataRoot(), "cache", "matplotlib");
+  fs.mkdirSync(cache, { recursive: true });
   const { stdout } = await runProcess(
     pythonBin(),
     [path.join(process.cwd(), "worker", script)],
@@ -84,6 +87,7 @@ export async function pythonJson<T>(
         PATH: process.env.PATH,
         LANG: "C.UTF-8",
         PYTHONIOENCODING: "utf-8",
+        MPLCONFIGDIR: cache,
         NODE_ENV: process.env.NODE_ENV,
       },
     },
