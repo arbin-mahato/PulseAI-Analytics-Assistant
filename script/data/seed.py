@@ -92,12 +92,25 @@ def create_fixture(seed=42, users=100, as_of=None):
         ("NIFTY-OPT", "OPTIONS", 200),
         ("BANKNIFTY-FUT", "FUTURES", 48000),
     ]
+    # Deliberately fictional identities. They give charts and reports credible labels
+    # without using a real person's trading information.
+    first_names = [
+        "Aarav", "Aditi", "Ananya", "Arjun", "Dev", "Diya", "Ishaan", "Isha",
+        "Kabir", "Kavya", "Kiran", "Meera", "Neel", "Nisha", "Pranav", "Priya",
+        "Rahul", "Rhea", "Rohan", "Sana", "Siddharth", "Simran", "Tanvi", "Varun",
+        "Ved", "Zoya",
+    ]
+    last_names = [
+        "Bansal", "Chopra", "Desai", "Gupta", "Iyer", "Jain", "Kapoor", "Mehta",
+        "Nair", "Patel", "Reddy", "Shah", "Singh", "Verma",
+    ]
 
     def add(table, **row):
         rows[table].append(row)
 
     for i in range(users):
-        cid = f"DEMO{i+1:04d}"
+        cid = f"INB-24-{100001 + i}"
+        name = f"{first_names[i % len(first_names)]} {last_names[(i // len(first_names)) % len(last_names)]}"
         inactive = i % 13 == 0
         new = i % 17 == 0
         busy = i % 9 == 0
@@ -106,8 +119,8 @@ def create_fixture(seed=42, users=100, as_of=None):
         add(
             "analytics.users",
             client_id=cid,
-            name=f"Demo Trader {i+1:03d}",
-            email=f"trader{i+1:03d}@example.test",
+            name=name,
+            email=f"{name.lower().replace(' ', '.')}@accounts.invalid",
             created_at=start,
             last_seen=seen,
         )
@@ -322,7 +335,7 @@ def build(output, seed=42, users=100, as_of=None):
         )
         db.execute(
             "INSERT INTO dataset_info VALUES (?, ?, true, ?, ?, ?, ?)",
-            [seed, anchor, "INR", "Asia/Kolkata", users, "synthetic-broker-v1"],
+            [seed, anchor, "INR", "Asia/Kolkata", users, "synthetic-broker-v2"],
         )
         db.execute(
             "CREATE VIEW metric_helpers.daily AS SELECT client_id, CAST(_timestamp AS DATE) AS day, sum(realized_pnl) pnl, sum(quantity*price) volume, count(*) trades FROM analytics.trades GROUP BY 1,2"
@@ -364,7 +377,7 @@ def build(output, seed=42, users=100, as_of=None):
         "synthetic": True,
         "currency": "INR",
         "timezone": "Asia/Kolkata",
-        "version": "synthetic-broker-v1",
+        "version": "synthetic-broker-v2",
         "tables": {k: len(v) for k, v in rows.items()},
         "metric_tables": {k: users for k in expected},
         "schema": SCHEMAS,

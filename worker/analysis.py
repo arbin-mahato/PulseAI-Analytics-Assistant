@@ -114,7 +114,7 @@ def chart(request):
     fig.text(
         0.99,
         0.01,
-        "TradeLab • Synthetic demo data",
+        "TradeLab • Synthetic dataset",
         ha="right",
         fontsize=8,
         color="#64748b",
@@ -154,7 +154,7 @@ def pdf(request):
     styles["BodyText"].spaceAfter = 8
     story = [
         Paragraph("TradeLab Analytics Report", styles["Title"]),
-        Paragraph("Synthetic demo data • Amounts in INR", styles["BodyText"]),
+        Paragraph("Synthetic dataset • Amounts in INR", styles["BodyText"]),
         Spacer(1, 12),
     ]
     lines = request["content"].splitlines()

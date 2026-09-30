@@ -10,7 +10,7 @@ test("workspace loads, providers are visible, private files download and remain 
     page.getByRole("combobox", { name: "AI provider" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Synthetic demo data · INR · Saved on this server"),
+    page.getByText("Synthetic dataset · INR · Saved on this server"),
   ).toBeVisible();
   await page.getByRole("link", { name: "Files", exact: true }).click();
   await expect(
@@ -70,7 +70,7 @@ test("saved analysis restores its chart and renders the complete PDF in the orig
   test.setTimeout(60000);
   await page.goto("/chat");
   await expect(
-    page.getByText("Synthetic demo data · INR · Saved on this server"),
+    page.getByText("Synthetic dataset · INR · Saved on this server"),
   ).toBeVisible();
   const { ownerOf } = await import("../../src/lib/runtime/auth");
   const { conversation, createRun, saveConversation } =

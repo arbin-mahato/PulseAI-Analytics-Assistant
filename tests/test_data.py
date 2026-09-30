@@ -89,13 +89,13 @@ class DatasetTests(unittest.TestCase):
         )
         self.assertEqual(
             self.db.execute(
-                "SELECT trade_count_90d FROM trading_frequency WHERE client_id='DEMO0001'"
+                "SELECT trade_count_90d FROM trading_frequency WHERE client_id='INB-24-100001'"
             ).fetchone()[0],
             0,
         )
         self.assertIsNone(
             self.db.execute(
-                "SELECT win_rate_90d FROM behavioral_style WHERE client_id='DEMO0001'"
+                "SELECT win_rate_90d FROM behavioral_style WHERE client_id='INB-24-100001'"
             ).fetchone()[0]
         )
 
@@ -104,6 +104,15 @@ class DatasetTests(unittest.TestCase):
             seed.create_fixture(7, 3, "2026-09-11"),
             seed.create_fixture(7, 3, "2026-09-11"),
         )
+
+    def test_client_labels_are_plausible_but_fictional(self):
+        users = self.db.execute(
+            "SELECT client_id,name,email FROM analytics.users ORDER BY client_id"
+        ).fetchall()
+        self.assertTrue(all(client_id.startswith("INB-24-") for client_id, _, _ in users))
+        self.assertTrue(all("DEMO" not in client_id for client_id, _, _ in users))
+        self.assertTrue(all("Trader" not in name for _, name, _ in users))
+        self.assertTrue(all(email.endswith("@accounts.invalid") for _, _, email in users))
 
 
 if __name__ == "__main__":

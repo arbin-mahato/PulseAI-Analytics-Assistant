@@ -35,7 +35,7 @@ class Reports(unittest.TestCase):
             source.write_text(
                 json.dumps(
                     [
-                        {"client_id": f"DEMO{i:04}", "volume": i * 1000.25}
+                        {"client_id": f"INB-24-{100000 + i}", "volume": i * 1000.25}
                         for i in range(201)
                     ]
                 )

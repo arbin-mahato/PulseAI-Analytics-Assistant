@@ -55,7 +55,7 @@ The application is a functional replication, not a byte-for-byte clone. Claude A
 - Show the top 5 users by 30-day trading volume. Include a table and a bar chart.
 - Compare the win rate and realized PnL of the 10 most active traders over 30 days.
 - Which accounts have the highest rejection rates? Show counts as well as percentages.
-- Show the daily realized PnL over the last 30 days for DEMO0001.
+- Show the daily realized PnL over the last 30 days for INB-24-100001.
 - Turn this analysis into a PDF report and include the chart.
 
 Free API limits apply to every model call, so one question may need several calls and temporary waits. Auto mode tries configured providers in `LLM_FALLBACK_ORDER` (default Claude → Groq → Gemini). Selecting a provider makes it the first choice, with fallback still enabled. Missing keys are skipped. Both Groq and Gemini are supported; neither is a fake/mock fallback. A second key helps availability, but cannot guarantee unlimited free usage.

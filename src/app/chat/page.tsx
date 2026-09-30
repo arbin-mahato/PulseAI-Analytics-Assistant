@@ -251,7 +251,7 @@ export default function ChatPage() {
         setProviders(status.providers);
         setNotice(
           status.dataset
-            ? "Synthetic demo data · INR · Saved on this server"
+            ? "Synthetic dataset · INR · Saved on this server"
             : "Dataset missing — run npm run build-db",
         );
         const saved = localStorage.getItem("tradelab_session_id");
@@ -659,7 +659,7 @@ export default function ChatPage() {
                   </button>
                 </form>
                 <p className="text-center text-xs text-slate-400 mt-3">
-                  Synthetic demo data. Answers use shared MCP analysis tools.
+                  Synthetic dataset. Answers use shared MCP analysis tools.
                 </p>
               </div>
             </div>
