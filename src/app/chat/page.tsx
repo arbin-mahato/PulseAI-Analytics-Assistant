@@ -224,6 +224,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<"tools" | "prompts">("tools");
 
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [viewingPdf, setViewingPdf] = useState<string | null>(null);
@@ -502,11 +503,6 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen w-screen bg-gradient-to-br from-white to-slate-50 font-['Inter',system-ui,-apple-system,'Segoe UI',Roboto] text-sm leading-6 overflow-hidden">
-      {/* Hidden Tools Panel for thinking log capture */}
-      <div className="hidden">
-        <ToolsPanel ref={toolsPanelRef} />
-      </div>
-
       {/* Main Chat Interface */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden shadow-inner">
         {/* Header */}
@@ -551,25 +547,26 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 px-6 py-2 border-b bg-slate-50 text-xs">
-          <span role="status" className="mr-auto text-slate-600">
+        <div className="flex flex-wrap items-center gap-3 px-6 py-2.5 border-b border-slate-200 bg-slate-50 text-xs text-slate-700">
+          <span role="status" className="mr-auto text-slate-600 font-medium">
             {notice}
           </span>
-          <label>
-            AI{" "}
+          <label className="flex items-center gap-1.5 font-medium text-slate-700">
+            <span>AI:</span>
             <select
               aria-label="AI provider"
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
               disabled={isLoading || !ready}
-              className="border rounded p-1 bg-white"
+              className="border border-slate-300 rounded-md px-2 py-1 bg-white text-slate-800 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-[#0C499C]"
             >
-              <option value="auto">Auto fallback</option>
+              <option value="auto" className="text-slate-800">Auto fallback</option>
               {["claude", "groq", "gemini"].map((name) => (
                 <option
                   key={name}
                   value={name}
                   disabled={!providers.some((p) => p.name === name)}
+                  className="text-slate-800"
                 >
                   {name}
                   {providers.some((p) => p.name === name)
@@ -584,16 +581,19 @@ export default function ChatPage() {
             value={currentSessionId || ""}
             disabled={isLoading || !ready}
             onChange={(e) => loadConversation(e.target.value)}
-            className="border rounded p-1 bg-white max-w-48"
+            className="border border-slate-300 rounded-md px-2 py-1 bg-white text-slate-800 text-xs max-w-56 truncate shadow-sm focus:outline-none focus:ring-1 focus:ring-[#0C499C]"
           >
-            <option value="">Saved conversations</option>
+            <option value="" className="text-slate-500">Saved conversations</option>
             {conversations.map((c) => (
-              <option key={c.id} value={c.id}>
+              <option key={c.id} value={c.id} className="text-slate-800">
                 {c.title}
               </option>
             ))}
           </select>
-          <a href="/upload" className="underline">
+          <a
+            href="/upload"
+            className="text-[#0C499C] hover:text-[#093877] font-semibold underline underline-offset-2 transition-colors"
+          >
             Files
           </a>
           <button
@@ -602,7 +602,7 @@ export default function ChatPage() {
               localStorage.removeItem("tradelab_session_id");
               window.location.assign("/signin");
             }}
-            className="underline"
+            className="text-slate-600 hover:text-red-600 font-semibold underline underline-offset-2 cursor-pointer transition-colors"
           >
             Sign out
           </button>
@@ -1521,30 +1521,31 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* System Prompts Panel */}
+      {/* Collapsible Sidebar: MCP Tools & Preferences */}
       <div
-        className={`bg-white border-l border-gray-200 relative transition-[width] duration-300 ${
+        className={`bg-white border-l border-slate-200 relative transition-[width] duration-300 flex flex-col ${
           isPanelOpen
-            ? "w-[350px] min-w-[350px] max-w-[350px] flex-shrink-0 p-5 overflow-y-auto"
-            : "w-10 min-w-10 max-w-10 flex-shrink-0 p-0"
+            ? "w-[360px] min-w-[360px] max-w-[360px] flex-shrink-0"
+            : "w-10 min-w-10 max-w-10 flex-shrink-0"
         }`}
       >
         <button
-          className="absolute top-5 right-5 w-8 h-8 rounded-full flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#0C499C] hover:opacity-90 z-10"
+          className="absolute top-3.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[#0C499C] hover:opacity-90 z-20 cursor-pointer shadow-sm"
           style={{
             backgroundColor: THEME_COLOR,
             border: `1px solid ${THEME_COLOR}`,
           }}
           onClick={() => setIsPanelOpen(!isPanelOpen)}
           aria-label={
-            isPanelOpen ? "Close system prompts" : "Open system prompts"
+            isPanelOpen ? "Close sidebar panel" : "Open sidebar panel"
           }
           aria-expanded={isPanelOpen}
+          title={isPanelOpen ? "Collapse sidebar" : "Expand sidebar"}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
+            width="15"
+            height="15"
             viewBox="0 0 24 24"
             fill="none"
             stroke="white"
@@ -1556,7 +1557,47 @@ export default function ChatPage() {
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
         </button>
-        {isPanelOpen && <PromptsPanel />}
+
+        {isPanelOpen ? (
+          <div className="flex flex-col h-full overflow-hidden">
+            {/* Tab Navigation */}
+            <div className="flex items-center border-b border-slate-200 px-3 pt-3 pb-2 pr-11 gap-1.5 bg-slate-50/70">
+              <button
+                onClick={() => setSidebarTab("tools")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  sidebarTab === "tools"
+                    ? "bg-white text-[#0C499C] shadow-sm border border-slate-200"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                🛠️ MCP Tools
+              </button>
+              <button
+                onClick={() => setSidebarTab("prompts")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  sidebarTab === "prompts"
+                    ? "bg-white text-[#0C499C] shadow-sm border border-slate-200"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+              >
+                ⚙️ Preferences
+              </button>
+            </div>
+
+            {/* Tab Contents */}
+            <div className="flex-1 overflow-y-auto">
+              <div style={{ display: sidebarTab === "tools" ? "block" : "none" }}>
+                <ToolsPanel ref={toolsPanelRef} />
+              </div>
+              {sidebarTab === "prompts" && <PromptsPanel />}
+            </div>
+          </div>
+        ) : (
+          /* Keep ToolsPanel mounted in hidden state when collapsed so toolsPanelRef persists */
+          <div className="hidden">
+            <ToolsPanel ref={toolsPanelRef} />
+          </div>
+        )}
       </div>
 
       {/* PDF Viewer Modal */}
