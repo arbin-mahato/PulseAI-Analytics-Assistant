@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, isValidElement, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -934,7 +934,7 @@ export default function ChatPage() {
                                 typeof firstChild === "string" &&
                                 firstChild.trim().startsWith("Downloads:")
                               ) {
-                                const rest = Array.isArray(children)
+                                const rawRest = Array.isArray(children)
                                   ? children
                                       .slice(1)
                                       .filter(
@@ -943,6 +943,26 @@ export default function ChatPage() {
                                           c.trim() !== "·",
                                       )
                                   : children;
+                                const restList = Array.isArray(rawRest) ? rawRest : [rawRest];
+                                const seenLabels = new Set<string>();
+                                const rest: ReactNode[] = [];
+                                for (let i = restList.length - 1; i >= 0; i--) {
+                                  const item = restList[i];
+                                  if (isValidElement(item)) {
+                                    const p = item.props as Record<string, unknown> | undefined;
+                                    const label =
+                                      typeof p?.children === "string"
+                                        ? p.children
+                                        : Array.isArray(p?.children)
+                                          ? p.children.filter((x) => typeof x === "string").join("")
+                                          : "";
+                                    if (label) {
+                                      if (seenLabels.has(label)) continue;
+                                      seenLabels.add(label);
+                                    }
+                                  }
+                                  rest.unshift(item);
+                                }
                                 return (
                                   <div className="mt-4 pt-3.5 border-t border-slate-200/80 bg-slate-50/70 rounded-xl p-3">
                                     <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-slate-700 uppercase tracking-wider">

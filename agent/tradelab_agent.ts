@@ -126,14 +126,23 @@ export async function runTradeLabAgent(
       });
       if (!result.toolCalls.length) {
         answer.content = result.text;
-        const links = artifacts
+        const seenNames = new Set<string>();
+        const uniqueArtifacts: ToolArtifact[] = [];
+        for (let i = artifacts.length - 1; i >= 0; i--) {
+          const a = artifacts[i];
+          if (!seenNames.has(a.filename)) {
+            seenNames.add(a.filename);
+            uniqueArtifacts.unshift(a);
+          }
+        }
+        const links = uniqueArtifacts
           .filter((a) => !answer.content.includes(a.url))
           .map((a) => `[${a.filename}](${a.url})`);
         if (links.length)
           answer.content += "\n\nDownloads: " + links.join(" · ");
         onText(answer.content);
         emit({ type: "content", content: answer.content });
-        return { sessionId: saved.id, content: answer.content, artifacts };
+        return { sessionId: saved.id, content: answer.content, artifacts: uniqueArtifacts };
       }
       for (const call of result.toolCalls) {
         signal.throwIfAborted();
