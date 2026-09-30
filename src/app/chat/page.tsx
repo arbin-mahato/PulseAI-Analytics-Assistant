@@ -226,6 +226,7 @@ export default function ChatPage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<"tools" | "prompts">("tools");
 
+  const [passwordRequired, setPasswordRequired] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [viewingPdf, setViewingPdf] = useState<string | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -244,7 +245,11 @@ export default function ChatPage() {
           window.location.replace("/signin");
           return;
         }
-        if (!session.ok) throw new Error((await session.json()).error);
+        const sessionData = await session.json();
+        if (!session.ok) throw new Error(sessionData.error);
+        if (sessionData.passwordRequired) {
+          setPasswordRequired(true);
+        }
         const r = await fetch("/api/status");
         const status = await r.json();
         if (!r.ok) throw new Error(status.error);
@@ -596,16 +601,18 @@ export default function ChatPage() {
           >
             Files
           </a>
-          <button
-            onClick={async () => {
-              await fetch("/api/session", { method: "DELETE" });
-              localStorage.removeItem("tradelab_session_id");
-              window.location.assign("/signin");
-            }}
-            className="text-slate-600 hover:text-red-600 font-semibold underline underline-offset-2 cursor-pointer transition-colors"
-          >
-            Sign out
-          </button>
+          {passwordRequired && (
+            <button
+              onClick={async () => {
+                await fetch("/api/session", { method: "DELETE" });
+                localStorage.removeItem("tradelab_session_id");
+                window.location.assign("/signin");
+              }}
+              className="text-slate-600 hover:text-red-600 font-semibold underline underline-offset-2 cursor-pointer transition-colors"
+            >
+              Sign out
+            </button>
+          )}
         </div>
         {/* Messages Area */}
         <div
