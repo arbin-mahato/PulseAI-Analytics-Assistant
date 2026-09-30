@@ -331,6 +331,39 @@ export default function ChatPage() {
     console.log("Started new conversation");
   };
 
+  const handleDownloadFile = async (
+    url: string,
+    filename: string = "download",
+  ) => {
+    try {
+      const downloadUrl = url.includes("download=")
+        ? url
+        : `${url}${url.includes("?") ? "&" : "?"}download=1`;
+      const res = await fetch(downloadUrl);
+      if (!res.ok) throw new Error("File fetch failed");
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (err) {
+      console.warn("Direct blob download failed, falling back to anchor link:", err);
+      const downloadUrl = url.includes("download=")
+        ? url
+        : `${url}${url.includes("?") ? "&" : "?"}download=1`;
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   const handleDownloadImage = (
     src: string | Blob,
     filename: string = "image.png",
@@ -347,12 +380,9 @@ export default function ChatPage() {
     document.body.removeChild(link);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim() || isLoading || !ready) return;
-    const userQuery = query.trim();
+  const sendUserPrompt = async (userQuery: string) => {
+    if (!userQuery.trim() || isLoading || !ready) return;
     addMessage("user", userQuery);
-    setQuery("");
     setIsLoading(true);
     toolsPanelRef.current?.resetTools();
     const id = crypto.randomUUID(),
@@ -452,6 +482,14 @@ export default function ChatPage() {
       abortControllerRef.current = null;
       await refreshConversations();
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim() || isLoading || !ready) return;
+    const userQuery = query.trim();
+    setQuery("");
+    await sendUserPrompt(userQuery);
   };
 
   // Define the prompt suggestions for the initial screen
@@ -802,11 +840,142 @@ export default function ChatPage() {
                                 {children}
                               </strong>
                             ),
-                            p: ({ children }) => (
-                              <p className="my-3 leading-6 first:mt-0 last:mb-0 text-slate-700">
-                                {children}
-                              </p>
-                            ),
+                            a: ({ href, children }) => {
+                              const url = href || "";
+                              const isFile =
+                                url.startsWith("/api/files/") ||
+                                /\.(pdf|csv|png|jpe?g|json)$/i.test(url);
+                              const text = String(children || "");
+                              const isPdf =
+                                /\.pdf$/i.test(url) || /\.pdf$/i.test(text);
+                              const isCsv =
+                                /\.csv$/i.test(url) || /\.csv$/i.test(text);
+                              const isImage =
+                                /\.(png|jpe?g)$/i.test(url) ||
+                                /\.(png|jpe?g)$/i.test(text);
+                              const isJson =
+                                /\.json$/i.test(url) || /\.json$/i.test(text);
+
+                              if (isFile) {
+                                const filename =
+                                  text || url.split("/").pop() || "download";
+                                const downloadUrl = url.includes("download=")
+                                  ? url
+                                  : `${url}${url.includes("?") ? "&" : "?"}download=1`;
+
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      handleDownloadFile(downloadUrl, filename);
+                                    }}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 my-1 mr-2 text-xs font-semibold rounded-lg shadow-sm border transition-all cursor-pointer ${
+                                      isPdf
+                                        ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300"
+                                        : isCsv
+                                          ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
+                                          : isImage
+                                            ? "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
+                                            : "bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200"
+                                    }`}
+                                    title={`Download ${filename}`}
+                                  >
+                                    <span className="text-sm">
+                                      {isPdf
+                                        ? "📄"
+                                        : isCsv
+                                          ? "📊"
+                                          : isImage
+                                            ? "🖼️"
+                                            : isJson
+                                              ? "📋"
+                                              : "💾"}
+                                    </span>
+                                    <span className="underline decoration-current/30 underline-offset-2 hover:decoration-current">
+                                      {children}
+                                    </span>
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width="13"
+                                      height="13"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="opacity-75"
+                                    >
+                                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                      <polyline points="7 10 12 15 17 10" />
+                                      <line x1="12" y1="15" x2="12" y2="3" />
+                                    </svg>
+                                  </button>
+                                );
+                              }
+
+                              return (
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 underline font-medium hover:text-blue-800"
+                                >
+                                  {children}
+                                </a>
+                              );
+                            },
+                            p: ({ children }) => {
+                              const firstChild = Array.isArray(children)
+                                ? children[0]
+                                : children;
+                              if (
+                                typeof firstChild === "string" &&
+                                firstChild.trim().startsWith("Downloads:")
+                              ) {
+                                const rest = Array.isArray(children)
+                                  ? children
+                                      .slice(1)
+                                      .filter(
+                                        (c) =>
+                                          typeof c !== "string" ||
+                                          c.trim() !== "·",
+                                      )
+                                  : children;
+                                return (
+                                  <div className="mt-4 pt-3.5 border-t border-slate-200/80 bg-slate-50/70 rounded-xl p-3">
+                                    <div className="flex items-center gap-1.5 mb-2 text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        className="text-blue-600"
+                                      >
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                        <polyline points="7 10 12 15 17 10" />
+                                        <line x1="12" y1="15" x2="12" y2="3" />
+                                      </svg>
+                                      Exported Files & Downloads
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      {rest}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <p className="my-3 leading-6 first:mt-0 last:mb-0 text-slate-700">
+                                  {children}
+                                </p>
+                              );
+                            },
                             ul: ({ children }) => (
                               <ul className="my-2 pl-6">{children}</ul>
                             ),
@@ -901,124 +1070,182 @@ export default function ChatPage() {
                           </div>
                         )}
 
-                        {/* Message-specific PDF Display (event-based only) */}
-                        {message.pdfUrl &&
-                          (() => {
-                            const pdfUrl = message.pdfUrl;
-                            const fileName = decodeURIComponent(
-                              pdfUrl.split("/").pop() || "document.pdf",
-                            );
-                            console.log(
-                              "📄 Rendering PDF UI for message:",
-                              message.id,
-                              "URL:",
-                              pdfUrl,
-                            );
-                            return (
-                              <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-blue-50 to-slate-50 mt-3 p-4">
-                                <div className="flex items-center gap-3">
-                                  {/* PDF Icon */}
-                                  <div className="flex-shrink-0 w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center shadow-md">
+                        {/* Message-specific PDF Display & On-Demand Generator */}
+                        {(() => {
+                          const effectivePdfUrl =
+                            message.pdfUrl ||
+                            (() => {
+                              const match = (
+                                message.finalAnswer ||
+                                message.content ||
+                                ""
+                              ).match(
+                                /\[([^\]]+\.pdf)\]\((\/api\/files\/[a-zA-Z0-9_-]+)\)/i,
+                              );
+                              return match ? match[2] : undefined;
+                            })();
+
+                          if (!effectivePdfUrl) {
+                            const text =
+                              message.finalAnswer || message.content || "";
+                            const hasAnalysis =
+                              message.image ||
+                              text.includes("query-results") ||
+                              text.includes("<table") ||
+                              text.includes("|") ||
+                              text.includes("financial_volume");
+                            if (hasAnalysis && !isLoading) {
+                              return (
+                                <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between">
+                                  <span className="text-xs text-slate-500 font-medium">
+                                    Want an executive report of these findings?
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      sendUserPrompt(
+                                        "Generate and attach a formal PDF report for this analysis with a summary and the chart.",
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-xs font-semibold text-red-700 transition-all shadow-sm cursor-pointer"
+                                    title="Generate PDF Report"
+                                  >
                                     <svg
                                       xmlns="http://www.w3.org/2000/svg"
-                                      width="24"
-                                      height="24"
+                                      width="14"
+                                      height="14"
                                       viewBox="0 0 24 24"
                                       fill="none"
-                                      stroke="white"
+                                      stroke="currentColor"
                                       strokeWidth="2"
                                       strokeLinecap="round"
                                       strokeLinejoin="round"
                                     >
                                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                       <polyline points="14 2 14 8 20 8"></polyline>
+                                      <line x1="12" y1="18" x2="12" y2="12"></line>
+                                      <line x1="9" y1="15" x2="15" y2="15"></line>
                                     </svg>
+                                    Generate PDF Report
+                                  </button>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }
+
+                          const fileName = decodeURIComponent(
+                            effectivePdfUrl.split("/").pop() || "tradelab-report.pdf",
+                          ).replace(/[^a-zA-Z0-9_.-]/g, "_");
+
+                          return (
+                            <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-blue-50 to-slate-50 mt-3 p-4">
+                              <div className="flex items-center gap-3">
+                                {/* PDF Icon */}
+                                <div className="flex-shrink-0 w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center shadow-md">
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                  </svg>
+                                </div>
+                                {/* PDF Info */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-semibold text-slate-800 truncate">
+                                    {fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`}
                                   </div>
-                                  {/* PDF Info */}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="font-semibold text-slate-800 truncate">
-                                      {fileName}
-                                    </div>
-                                    <div className="text-xs text-slate-500">
-                                      Ready to view
-                                    </div>
-                                  </div>
-                                  {/* Action Buttons */}
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => {
-                                        console.log(
-                                          "View PDF clicked:",
-                                          pdfUrl,
-                                        );
-                                        setViewingPdf(pdfUrl);
-                                      }}
-                                      className="px-4 py-2 text-white rounded-lg shadow-sm transition-all focus:outline-none text-sm font-medium hover:opacity-90"
-                                      style={{ backgroundColor: THEME_COLOR }}
-                                      title="View PDF"
-                                    >
-                                      <span className="flex items-center gap-2">
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          width="16"
-                                          height="16"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        >
-                                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                          <circle
-                                            cx="12"
-                                            cy="12"
-                                            r="3"
-                                          ></circle>
-                                        </svg>
-                                        View
-                                      </span>
-                                    </button>
-                                    <a
-                                      href={pdfUrl}
-                                      download={fileName}
-                                      className="px-4 py-2 rounded-lg shadow-sm transition-all focus:outline-none text-sm font-medium inline-flex items-center hover:opacity-90"
-                                      style={{
-                                        border: `1px solid ${THEME_COLOR}`,
-                                        color: THEME_COLOR,
-                                        background: "#fff",
-                                      }}
-                                      title="Download PDF"
-                                    >
-                                      <span className="flex items-center gap-2">
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          width="16"
-                                          height="16"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        >
-                                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                          <polyline points="7 10 12 15 17 10"></polyline>
-                                          <line
-                                            x1="12"
-                                            y1="15"
-                                            x2="12"
-                                            y2="3"
-                                          ></line>
-                                        </svg>
-                                        Download
-                                      </span>
-                                    </a>
+                                  <div className="text-xs text-slate-500">
+                                    Official verified report
                                   </div>
                                 </div>
+                                {/* Action Buttons */}
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setViewingPdf(effectivePdfUrl);
+                                    }}
+                                    className="px-4 py-2 text-white rounded-lg shadow-sm transition-all focus:outline-none text-sm font-medium hover:opacity-90 cursor-pointer"
+                                    style={{ backgroundColor: THEME_COLOR }}
+                                    title="View PDF"
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle
+                                          cx="12"
+                                          cy="12"
+                                          r="3"
+                                        ></circle>
+                                      </svg>
+                                      View
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleDownloadFile(
+                                        effectivePdfUrl,
+                                        fileName.endsWith(".pdf")
+                                          ? fileName
+                                          : `${fileName}.pdf`,
+                                      )
+                                    }
+                                    className="px-4 py-2 rounded-lg shadow-sm transition-all focus:outline-none text-sm font-medium inline-flex items-center hover:opacity-90 cursor-pointer"
+                                    style={{
+                                      border: `1px solid ${THEME_COLOR}`,
+                                      color: THEME_COLOR,
+                                      background: "#fff",
+                                    }}
+                                    title="Download PDF"
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="7 10 12 15 17 10"></polyline>
+                                        <line
+                                          x1="12"
+                                          y1="15"
+                                          x2="12"
+                                          y2="3"
+                                        ></line>
+                                      </svg>
+                                      Download
+                                    </span>
+                                  </button>
+                                </div>
                               </div>
-                            );
-                          })()}
+                            </div>
+                          );
+                        })()}
 
                         {/* END OF EVENT-BASED PDF RENDERING - This is the ONLY PDF rendering system */}
                       </>

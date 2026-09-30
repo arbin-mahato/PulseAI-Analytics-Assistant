@@ -26,19 +26,21 @@ export async function GET(
       throw new HttpError(404, "The stored file is no longer available.");
     const download =
       new URL(req.url).searchParams.has("download") ||
-      !["image/png", "image/jpeg", "application/pdf"].includes(a.mime);
+      !["image/png", "image/jpeg"].includes(a.mime);
+    const filename = a.filename.replace(/[^a-zA-Z0-9_.-]/g, "_");
+    const headers: Record<string, string> = {
+      "Content-Type": a.mime,
+      "Content-Length": String(fs.statSync(file).size),
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"`,
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": download
+        ? "default-src 'none'"
+        : "default-src 'none'; sandbox allow-scripts allow-same-origin allow-downloads",
+    };
     return new Response(
       Readable.toWeb(fs.createReadStream(file)) as ReadableStream,
-      {
-        headers: {
-          "Content-Type": a.mime,
-          "Content-Length": String(fs.statSync(file).size),
-          "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${a.filename.replace(/[^a-zA-Z0-9_.-]/g, "_")}"`,
-          "Cache-Control": "private, no-store",
-          "X-Content-Type-Options": "nosniff",
-          "Content-Security-Policy": "default-src 'none'; sandbox",
-        },
-      },
+      { headers },
     );
   } catch (e) {
     return httpError(e);
