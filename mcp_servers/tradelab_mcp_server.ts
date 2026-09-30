@@ -8,9 +8,11 @@ import { randomUUID } from "node:crypto";
 import { executeQuery, schemaFor } from "../src/lib/analytics/query";
 import {
   type RunContext,
+  findArtifactById,
+  findArtifactPath,
+  findLatestArtifactIds,
   registerArtifact,
   resolveRunFile,
-  stateDb,
 } from "../src/lib/runtime/store";
 import { pythonJson } from "../src/lib/runtime/process";
 import { ensureInside, dataRoot } from "../src/lib/runtime/config";
@@ -121,7 +123,7 @@ export function createMcpServer(ctx: RunContext) {
             .join("\n")
         : JSON.stringify(result.rows),
     );
-    const artifact = registerArtifact(
+    const artifact = await registerArtifact(
       ctx,
       file_path,
       `query-results.${format}`,
@@ -208,17 +210,12 @@ export function createMcpServer(ctx: RunContext) {
         );
         const candidate = path.resolve(ctx.directory, recipe.data_file || "");
         // Prior results in this conversation are usable, but another user's results are not.
-        const prior = stateDb()
-          .prepare(
-            "SELECT local_path FROM artifacts WHERE local_path=? AND owner=? AND session_id=? AND mime IN (?,?)",
-          )
-          .get(
-            candidate,
-            ctx.owner,
-            ctx.sessionId,
-            "text/csv",
-            "application/json",
-          );
+        const prior = await findArtifactPath(
+          candidate,
+          ctx.owner,
+          ctx.sessionId,
+          ["text/csv", "application/json"],
+        );
         if (!prior)
           throw new Error(
             "Choose a CSV/JSON result file from this conversation.",
@@ -233,7 +230,7 @@ export function createMcpServer(ctx: RunContext) {
         return {
           data: result,
           artifacts: [
-            registerArtifact(ctx, output, "tradelab-chart.png", "image/png"),
+            await registerArtifact(ctx, output, "tradelab-chart.png", "image/png"),
           ],
         };
       }),
@@ -252,34 +249,35 @@ export function createMcpServer(ctx: RunContext) {
     },
     (args) =>
       wrap(async () => {
-        const images = (args.image_ids || []).map((id) => {
-          const a = stateDb()
-            .prepare(
-              "SELECT local_path FROM artifacts WHERE id=? AND owner=? AND session_id=? AND mime=?",
-            )
-            .get(id, ctx.owner, ctx.sessionId, "image/png");
-          if (!a)
-            throw new Error("Image is not available in this conversation.");
-          return a.local_path;
-        });
+        const images = await Promise.all(
+          (args.image_ids || []).map(async (id) => {
+            const a = await findArtifactById(
+              id,
+              ctx.owner,
+              ctx.sessionId,
+              "image/png",
+            );
+            if (!a)
+              throw new Error("Image is not available in this conversation.");
+            return a.local_path;
+          }),
+        );
         const selected =
           args.data_ids ??
-          stateDb()
-            .prepare(
-              "SELECT id FROM artifacts WHERE owner=? AND session_id=? AND mime IN ('text/csv','application/json') ORDER BY created DESC LIMIT 1",
-            )
-            .all(ctx.owner, ctx.sessionId)
-            .map((a) => String(a.id));
-        const data_files = selected.map((id) => {
-          const a = stateDb()
-            .prepare(
-              "SELECT local_path FROM artifacts WHERE id=? AND owner=? AND session_id=? AND mime IN ('text/csv','application/json')",
-            )
-            .get(id, ctx.owner, ctx.sessionId);
-          if (!a)
-            throw new Error("Data file is not available in this conversation.");
-          return ensureInside(dataRoot(), String(a.local_path));
-        });
+          (await findLatestArtifactIds(
+            ctx.owner,
+            ctx.sessionId,
+            ["text/csv", "application/json"],
+            1,
+          ));
+        const data_files = await Promise.all(
+          selected.map(async (id) => {
+            const a = await findArtifactById(id, ctx.owner, ctx.sessionId);
+            if (!a)
+              throw new Error("Data file is not available in this conversation.");
+            return ensureInside(dataRoot(), String(a.local_path));
+          }),
+        );
         const output = generated("pdf");
         const report = await pythonJson<{
           tables: { rows: number; total_rows: number; complete: boolean }[];
@@ -295,7 +293,7 @@ export function createMcpServer(ctx: RunContext) {
         return {
           data: report,
           artifacts: [
-            registerArtifact(ctx, output, filename, "application/pdf"),
+            await registerArtifact(ctx, output, filename, "application/pdf"),
           ],
         };
       }),

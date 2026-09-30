@@ -97,9 +97,10 @@ test("all seven tools execute through actual MCP, including charts and PDFs with
       { rows: 5, total_rows: 5, complete: true },
     ]);
     const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const pdfArtifact = await artifact(pdf.artifacts![0].id);
     const document = await getDocument({
       data: new Uint8Array(
-        fs.readFileSync(artifact(pdf.artifacts![0].id)!.local_path),
+        fs.readFileSync(pdfArtifact!.local_path),
       ),
       useSystemFonts: true,
     }).promise;

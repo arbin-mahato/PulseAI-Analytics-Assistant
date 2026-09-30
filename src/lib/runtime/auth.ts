@@ -5,32 +5,24 @@ import {
   timingSafeEqual,
   createHash,
 } from "node:crypto";
-import { stateDb } from "./store";
+import { getSetting, setSetting, checkRateLimit, HttpError } from "./store";
+export { HttpError };
 const COOKIE = "tradelab_session";
-export class HttpError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
+let cachedSecret: string | undefined;
 function secret() {
   if (process.env.APP_SESSION_SECRET) return process.env.APP_SESSION_SECRET;
-  const saved = stateDb()
-    .prepare("SELECT value FROM settings WHERE key=?")
-    .get("session-secret");
-  if (saved) return String(saved.value);
+  if (cachedSecret) return cachedSecret;
+  const saved = getSetting("session-secret");
+  if (typeof saved === "string") {
+    cachedSecret = saved;
+    return saved;
+  }
   const value = randomBytes(32).toString("hex");
-  stateDb()
-    .prepare("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)")
-    .run("session-secret", value);
-  return String(
-    stateDb()
-      .prepare("SELECT value FROM settings WHERE key=?")
-      .get("session-secret")!.value,
-  );
+  cachedSecret = value;
+  setSetting("session-secret", value);
+  return value;
 }
+
 const signature = (value: string) =>
   createHmac("sha256", secret()).update(value).digest("base64url");
 const equal = (a: string, b: string) => {
@@ -140,19 +132,7 @@ export function httpError(error: unknown) {
   );
 }
 export function rateLimit(key: string, max: number, windowMs = 60000) {
-  const db = stateDb();
-  db.exec(
-    "CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, hits INTEGER NOT NULL, reset INTEGER NOT NULL)",
-  );
-  const now = Date.now();
-  db.prepare("DELETE FROM rate_limits WHERE reset<?").run(now);
-  const row = db
-    .prepare(
-      "INSERT INTO rate_limits(key,hits,reset) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET hits=hits+1 RETURNING hits",
-    )
-    .get(key, now + windowMs);
-  if (Number(row?.hits) > max)
-    throw new HttpError(429, "Too many requests. Please wait a minute.");
+  return checkRateLimit(key, max, windowMs);
 }
 export async function readLimited(request: Request, limit: number) {
   const reader = request.body?.getReader();

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { warehousePath } from "@/lib/runtime/config";
 import { configuredProviders } from "../../../../agent/providers/router";
 import { requireOwner, httpError } from "@/lib/runtime/auth";
+import { getDatabaseBackend } from "@/lib/runtime/store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
         dataset: fs.existsSync(file)
           ? JSON.parse(fs.readFileSync(file, "utf8"))
           : null,
-        storage: "local",
+        storage: getDatabaseBackend(),
         analytics: process.env.ANALYTICS_BACKEND || "duckdb",
       },
       { headers: { "cache-control": "no-store" } },

@@ -6,14 +6,16 @@ This is one Node/Python application with a persistent local data directory. Depl
 
 1. Push the implementation branch to your own GitHub repository.
 2. In Render, create a Blueprint from that repository/branch and review `render.yaml`.
-3. The Blueprint requests a **paid Starter service and a 1 GB persistent disk**. Review Render's current price before creating it.
+3. The Blueprint provisions the web service, a 1 GB persistent disk for generated artifacts/analytics, and a managed PostgreSQL database (`tradelab-db`) that automatically populates `DATABASE_URL`.
 4. Set `APP_ACCESS_PASSWORD` to a strong password and add `GROQ_API_KEY`. You can also add `GEMINI_API_KEY` and `ANTHROPIC_API_KEY`; any one provider is sufficient.
-5. `APP_SESSION_SECRET` is generated automatically. `TRADELAB_DATA_DIR=/app/data` is on the persistent disk. The app seeds the warehouse on first startup.
+5. `APP_SESSION_SECRET` is generated automatically. `TRADELAB_DATA_DIR=/app/data` is on the persistent disk for generated PDF/chart files and analytical DuckDB storage.
 6. Open the Render URL, sign in, ask for a table/chart/PDF, and refresh the page to confirm the conversation persists.
 
 Render provides `RENDER_EXTERNAL_URL`, which the app uses for cookie/origin checks. If using a custom domain, set `APP_ORIGIN` to that exact HTTPS origin (no trailing slash).
 
-Do not scale this local SQLite/DuckDB design to multiple independent service instances. Back up `/app/data` while the application is stopped, or use proper SQLite/DuckDB snapshot backup tooling. The disk contains sensitive files if you upload real material. Files currently remain until an operator removes them; monitor disk usage. Model keys and the access password belong in Render environment settings, never GitHub source.
+### Dual-Database Architecture
+- **Analytical Metrics**: Processed by DuckDB (or optional ClickHouse) directly on linked order/fill records.
+- **Application State & Conversations**: Persisted in PostgreSQL when `DATABASE_URL` (or `POSTGRES_URL`) is defined, falling back automatically to zero-config SQLite locally. All database tables and indexes (`conversations`, `artifacts`, `settings`, `rate_limits`) are provisioned automatically on first startup.
 
 ## Free Render demo
 

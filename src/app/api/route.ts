@@ -10,7 +10,7 @@ import {
   rateLimit,
   HttpError,
 } from "@/lib/runtime/auth";
-import { conversation, stateDb } from "@/lib/runtime/store";
+import { conversation, getBusyConversationsCount } from "@/lib/runtime/store";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   try {
     checkOrigin(req);
     const owner = requireOwner(req);
-    rateLimit(`chat:${owner}`, 12);
+    await rateLimit(`chat:${owner}`, 12);
     const body = await jsonBody(req);
     if (
       typeof body.query !== "string" ||
@@ -31,11 +31,9 @@ export async function POST(req: Request) {
       !["auto", "claude", "groq", "gemini"].includes(body.provider)
     )
       throw new HttpError(400, "Unknown provider.");
-    if (body.sessionId) conversation(owner, body.sessionId);
-    const busy = stateDb()
-      .prepare("SELECT COUNT(*) AS n FROM conversations WHERE busy_until>?")
-      .get(Date.now());
-    if (Number(busy?.n) >= 1)
+    if (body.sessionId) await conversation(owner, body.sessionId);
+    const busy = await getBusyConversationsCount();
+    if (busy >= 1)
       throw new HttpError(429, "The server is busy. Please retry shortly.");
     const abort = new AbortController(),
       signal = AbortSignal.any([req.signal, abort.signal]),

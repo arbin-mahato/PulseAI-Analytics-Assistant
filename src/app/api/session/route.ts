@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   try {
     productionCheck();
     checkOrigin(req);
-    rateLimit("login", 10);
+    await rateLimit("login", 10);
     const { password } = await jsonBody(req, 2000);
     const owner = isLocked()
       ? loginOwner(password)

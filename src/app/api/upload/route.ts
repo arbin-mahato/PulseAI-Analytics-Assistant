@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   try {
     return Response.json(
       {
-        files: ownedArtifacts(requireOwner(req)).map((a) => ({
+        files: (await ownedArtifacts(requireOwner(req))).map((a) => ({
           ...a,
           url: `/api/files/${a.id}`,
           isPublic: Boolean(a.public),
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   try {
     checkOrigin(req);
     const owner = requireOwner(req);
-    rateLimit(`upload:${owner}`, 10);
+    await rateLimit(`upload:${owner}`, 10);
     const bytes = await readLimited(req, 11 * 1024 * 1024);
     const form = await new Response(new Uint8Array(bytes), {
       headers: { "content-type": req.headers.get("content-type") || "" },
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     const ctx = createRun(owner, "uploads"),
       destination = path.join(ctx.directory, randomUUID() + ext);
     await fs.writeFile(destination, data);
-    const saved = registerArtifact(
+    const saved = await registerArtifact(
       ctx,
       destination,
       path.basename(file.name).slice(0, 150),

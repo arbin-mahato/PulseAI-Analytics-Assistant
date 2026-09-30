@@ -7,14 +7,14 @@ export async function GET(req: Request) {
     const owner = requireOwner(req),
       id = new URL(req.url).searchParams.get("id");
     if (id) {
-      const c = conversation(owner, id);
+      const c = await conversation(owner, id);
       return Response.json(
         { id: c.id, title: c.title, messages: JSON.parse(c.messages) },
         { headers: { "cache-control": "no-store" } },
       );
     }
     return Response.json(
-      { conversations: listConversations(owner) },
+      { conversations: await listConversations(owner) },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (e) {

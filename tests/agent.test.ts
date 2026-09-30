@@ -60,10 +60,10 @@ test("fallback retains verified MCP results, executes each tool once and persist
   assert.equal(calls, 2);
   assert.equal(events.filter((e) => e.type === "tool_start").length, 1);
   assert.equal(
-    JSON.parse(conversation("test-owner", result!.sessionId).messages).length,
+    JSON.parse((await conversation("test-owner", result!.sessionId)).messages).length,
     2,
   );
-  assert.throws(() => conversation("another-owner", result!.sessionId));
+  await assert.rejects(async () => await conversation("another-owner", result!.sessionId));
 });
 test("history trimming preserves whole tool groups", () => {
   const history = [

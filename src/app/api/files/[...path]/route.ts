@@ -18,7 +18,7 @@ export async function GET(
     productionCheck();
     const { path: parts } = await params;
     if (parts.length !== 1) throw new HttpError(404, "File not found.");
-    const a = artifact(parts[0]);
+    const a = await artifact(parts[0]);
     if (!a || (!a.public && a.owner !== ownerOf(req)))
       throw new HttpError(404, "File not found.");
     const file = ensureInside(dataRoot(), a.local_path);

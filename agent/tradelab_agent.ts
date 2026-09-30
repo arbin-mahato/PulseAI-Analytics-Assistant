@@ -68,8 +68,8 @@ export async function runTradeLabAgent(
     emit({ type: "thinking", content });
   };
   const router = createRouter(options.provider, options.providers, status);
-  const saved = conversation(owner, existingSessionId);
-  lockConversation(owner, saved.id, timeout + 10000);
+  const saved = await conversation(owner, existingSessionId);
+  await lockConversation(owner, saved.id, timeout + 10000);
   const history: AgentMessage[] = JSON.parse(saved.history),
     messages: DisplayMessage[] = JSON.parse(saved.messages);
   const answer: DisplayMessage = {
@@ -97,7 +97,7 @@ export async function runTradeLabAgent(
   try {
     mcp = await connectMcp(createRun(owner, saved.id, signal));
     const { tools } = await mcp.client.listTools();
-    const prompts = getPrompts(owner);
+    const prompts = await getPrompts(owner);
     const system =
       prompts.tradelab_system_prompt +
       (prompts.additional_instructions
@@ -228,7 +228,7 @@ export async function runTradeLabAgent(
   } finally {
     try {
       messages.push(answer);
-      saveConversation(
+      await saveConversation(
         owner,
         saved.id,
         history,
@@ -236,7 +236,7 @@ export async function runTradeLabAgent(
         messages[0]?.content || "Conversation",
       );
     } finally {
-      unlockConversation(owner, saved.id);
+      await unlockConversation(owner, saved.id);
       await mcp?.close();
     }
   }
