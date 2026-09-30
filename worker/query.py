@@ -115,8 +115,8 @@ def execute(request):
         read_only=True,
         config={
             "enable_external_access": "false",
-            "threads": "2",
-            "memory_limit": "256MB",
+            "threads": "1",
+            "memory_limit": "128MB",
         },
     )
     try:

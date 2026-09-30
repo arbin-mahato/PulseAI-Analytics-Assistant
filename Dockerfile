@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=320"
 RUN npm run build && npm prune --omit=dev --ignore-scripts && rm -rf .tradelab-build/cache
 
 FROM node:24-bookworm-slim AS runner
@@ -19,7 +19,7 @@ COPY worker ./worker
 COPY assets ./assets
 COPY script ./script
 COPY src/content ./src/content
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PYTHON_BIN=/opt/venv/bin/python TRADELAB_DATA_DIR=/app/data HOSTNAME=0.0.0.0 PORT=3000
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=320" PYTHON_BIN=/opt/venv/bin/python TRADELAB_DATA_DIR=/app/data HOSTNAME=0.0.0.0 PORT=3000
 RUN mkdir -p /app/data && chown -R node:node /app /opt/venv
 USER node
 EXPOSE 3000

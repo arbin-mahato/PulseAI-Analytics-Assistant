@@ -304,7 +304,8 @@ def build(output, seed=42, users=100, as_of=None):
     if staging.exists():
         staging.unlink()
     db = duckdb.connect(str(staging))
-    db.execute("SET threads=2")
+    db.execute("SET threads=1")
+    db.execute("SET max_memory='128MB'")
     try:
         for schema in ["analytics", "log_aggregator", "metric_helpers"]:
             db.execute(f"CREATE SCHEMA {schema}")
