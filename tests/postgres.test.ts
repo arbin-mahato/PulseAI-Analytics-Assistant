@@ -164,7 +164,7 @@ test("PostgreSQL store persistence and parity", async (t) => {
   // 4th call should throw 429
   await assert.rejects(
     async () => await checkRateLimit(rateLimitKey, 3, 60000),
-    (err: any) => err.status === 429,
+    (err: unknown) => (err as { status?: number })?.status === 429,
   );
 
   // Clean up

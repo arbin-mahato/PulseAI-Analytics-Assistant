@@ -1,7 +1,3 @@
-"use client";
-
-import { useState } from "react";
-
 interface ThinkingStep {
   timestamp: string;
   type: "tool_start" | "tool_complete" | "reasoning" | "status" | "thinking";
@@ -22,8 +18,6 @@ export default function ThinkingPanel({
   thinkingLog,
   isExpanded,
   onToggle,
-  currentTool,
-  toolStatus,
 }: ThinkingPanelProps) {
   if (!thinkingLog || thinkingLog.length === 0) {
     return null;

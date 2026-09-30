@@ -12,7 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    ".venv/**", "data/**", "db/**", "docs/**", "test-results/**", "playwright-report/**", "public/pdfjs/**",
+    ".venv/**", ".venv.nosync/**", "data/**", "db/**", "docs/**", "test-results/**", "playwright-report/**", "public/pdfjs/**", "eval_outputs/**",
   ]),
 ]);
 
