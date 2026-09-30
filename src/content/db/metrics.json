@@ -1,0 +1,440 @@
+{
+  "identity_and_lifecycle": [
+    {
+      "name": "client_id",
+      "description": "Alphanumeric synthetic client identifier; join metric tables on this column."
+    },
+    {
+      "name": "name",
+      "description": "Full name of the user for identification"
+    },
+    {
+      "name": "email",
+      "description": "Primary email address of the user"
+    },
+    {
+      "name": "first_trade_date",
+      "description": "Date of the user's first recorded trade"
+    },
+    {
+      "name": "days_since_first_trade",
+      "description": "Number of days since the user's first trade (cohort analysis)"
+    },
+    {
+      "name": "last_calculated_at",
+      "description": "Timestamp when this metric row was last updated"
+    },
+    {
+      "name": "days_since_last_seen",
+      "description": "Number of days since the user was last active (churn risk indicator)"
+    },
+    {
+      "name": "primary_platform_30d",
+      "description": "Device platform with most events in last 30 days (web/ios/android)"
+    },
+    {
+      "name": "is_multi_platform_user_30d",
+      "description": "Flag (1/0) if user was active on multiple platforms in last 30 days"
+    },
+    {
+      "name": "unique_ip_count_30d",
+      "description": "Number of unique IP addresses used in last 30 days"
+    },
+    {
+      "name": "latest_app_version_used",
+      "description": "Most recent app version recorded on user's events"
+    },
+    {
+      "name": "signup_date",
+      "description": "Date when user's account was first created"
+    },
+    {
+      "name": "account_age_days",
+      "description": "Total days user has been registered on platform"
+    },
+    {
+      "name": "activation_status",
+      "description": "Whether user has made at least one deposit (Activated/Not Activated)"
+    },
+    {
+      "name": "active_days_30d",
+      "description": "Number of unique days user was active in last 30 days"
+    },
+    {
+      "name": "avg_time_since_last_activity_per_login",
+      "description": "Average gap in days between consecutive logins"
+    },
+    {
+      "name": "distinct_login_ids_90d",
+      "description": "Number of unique login_id values in last 90 days"
+    }
+  ],
+  "trading_frequency": [
+    {
+      "name": "client_id",
+      "description": "Alphanumeric synthetic client identifier; join metric tables on this column."
+    },
+    {
+      "name": "trade_count_1d",
+      "description": "Total trades executed in last 24 hours"
+    },
+    {
+      "name": "trade_count_7d",
+      "description": "Total trades executed in last 7 days"
+    },
+    {
+      "name": "trade_count_30d",
+      "description": "Total trades executed in last 30 days (key engagement metric)"
+    },
+    {
+      "name": "trade_count_90d",
+      "description": "Total trades executed in last 90 days"
+    },
+    {
+      "name": "trade_count_360d",
+      "description": "Total trades executed in last 360 days"
+    },
+    {
+      "name": "active_trading_days_90d",
+      "description": "Number of unique days user placed trades in last 90 days"
+    },
+    {
+      "name": "trades_per_active_day_90d",
+      "description": "Average trades per active trading day"
+    },
+    {
+      "name": "avg_activity_cluster_duration_minutes_30d",
+      "description": "Average duration of continuous activity sessions in minutes"
+    },
+    {
+      "name": "avg_http_requests_per_session_30d",
+      "description": "Average API requests per activity session"
+    },
+    {
+      "name": "cluster_bounce_rate_30d",
+      "description": "Percentage of sessions with \u22643 events (bounce indicator) Stored as a fraction (0\u20131); multiply by 100 for percentage display."
+    },
+    {
+      "name": "weekend_cluster_count_30d",
+      "description": "Number of activity sessions initiated on weekends"
+    },
+    {
+      "name": "primary_activity_hour",
+      "description": "Hour of day (0-23) with highest platform events"
+    },
+    {
+      "name": "is_morning_active_flag",
+      "description": "Flag (1/0) if >50% of events occur before noon"
+    },
+    {
+      "name": "weekday_concentration_score_90d",
+      "description": "Herfindahl index of trade counts by weekday (higher means more concentrated)."
+    },
+    {
+      "name": "trade_volume_consistency_score_90d",
+      "description": "Score (0-1) measuring consistency of daily trading volume"
+    },
+    {
+      "name": "max_trades_per_second_90d",
+      "description": "Maximum trades executed in any single second"
+    },
+    {
+      "name": "primary_trade_day_90d",
+      "description": "Day of week with highest number of trades"
+    },
+    {
+      "name": "trade_count_by_day_of_week_variance_90d",
+      "description": "Population standard deviation of trade counts across observed weekdays."
+    },
+    {
+      "name": "activity_momentum_score",
+      "description": "Score indicating if trading activity is accelerating (>1) or decelerating (<1)"
+    }
+  ],
+  "financial_volume": [
+    {
+      "name": "client_id",
+      "description": "Alphanumeric synthetic client identifier; join metric tables on this column."
+    },
+    {
+      "name": "total_volume_1d",
+      "description": "Total notional value of trades in last 24 hours"
+    },
+    {
+      "name": "total_volume_7d",
+      "description": "Total notional value of trades in last 7 days"
+    },
+    {
+      "name": "total_volume_30d",
+      "description": "Total notional value of trades in last 30 days (primary user value indicator)"
+    },
+    {
+      "name": "total_volume_90d",
+      "description": "Total notional value of trades in last 90 days"
+    },
+    {
+      "name": "avg_trade_size_90d",
+      "description": "Average notional value per trade (distinguishes HFT vs large traders)"
+    },
+    {
+      "name": "total_deposit_amount_all_time",
+      "description": "Cumulative total amount deposited (core CLV metric)"
+    },
+    {
+      "name": "net_deposit_flow_90d",
+      "description": "Net cash flow (Deposits - Withdrawals) in last 90 days"
+    },
+    {
+      "name": "net_deposit_value_all_time",
+      "description": "User's total net financial contribution over lifetime"
+    },
+    {
+      "name": "deposit_frequency_90d",
+      "description": "Number of distinct deposit events in last 90 days"
+    },
+    {
+      "name": "avg_margin_utilization_pct_30d",
+      "description": "Mean blocked margin / available capital fraction (0\u20131), not percentage points."
+    },
+    {
+      "name": "days_since_first_withdrawal",
+      "description": "Days since user made first withdrawal (success/trust indicator)"
+    }
+  ],
+  "behavioral_style": [
+    {
+      "name": "client_id",
+      "description": "Alphanumeric synthetic client identifier; join metric tables on this column."
+    },
+    {
+      "name": "avg_holding_duration_all_time",
+      "description": "Mean matched-position holding duration in seconds."
+    },
+    {
+      "name": "order_cancellation_rate_30d",
+      "description": "Percentage of orders cancelled (indecision/bot indicator) Stored as a fraction (0\u20131); multiply by 100 for percentage display."
+    },
+    {
+      "name": "order_modification_rate_30d",
+      "description": "Percentage of orders modified Stored as a fraction (0\u20131); multiply by 100 for percentage display."
+    },
+    {
+      "name": "buy_to_sell_ratio_30d",
+      "description": "Ratio of buy to sell volume (accumulating vs distributing bias)"
+    },
+    {
+      "name": "distinct_symbols_traded_90d",
+      "description": "Number of unique assets traded (portfolio diversification measure)"
+    },
+    {
+      "name": "win_rate_90d",
+      "description": "Fraction (0\u20131) of trading days with positive realized P&L during the last 90 days."
+    },
+    {
+      "name": "profit_factor_90d",
+      "description": "Ratio of gross profits to gross losses (>1 indicates profitability)"
+    },
+    {
+      "name": "platform_logins_30d",
+      "description": "Number of unique login sessions (platform engagement)"
+    },
+    {
+      "name": "funds_check_count_30d",
+      "description": "Times user checked account balance/margin information"
+    },
+    {
+      "name": "portfolio_click_count_30d",
+      "description": "Times user clicked Portfolio navigation"
+    },
+    {
+      "name": "orders_page_view_count_30d",
+      "description": "Times user viewed Orders page"
+    },
+    {
+      "name": "dashboard_pins_view_count_30d",
+      "description": "Times main dashboard loaded pinned/watchlisted items"
+    },
+    {
+      "name": "order_to_trade_ratio_30d",
+      "description": "Ratio of orders placed to trades executed"
+    },
+    {
+      "name": "is_options_trader_flag",
+      "description": "Flag (1/0) if user has ever traded options contracts"
+    },
+    {
+      "name": "order_modification_pre_execution_rate_30d",
+      "description": "Percentage of orders modified before execution Stored as a fraction (0\u20131); multiply by 100 for percentage display."
+    },
+    {
+      "name": "stop_loss_usage_rate_90d",
+      "description": "Percentage of orders that were triggered/stop-loss type Stored as a fraction (0\u20131); multiply by 100 for percentage display."
+    },
+    {
+      "name": "intraday_vs_delivery_ratio_90d",
+      "description": "Ratio of intraday to delivery trades"
+    },
+    {
+      "name": "order_chasing_rate_30d",
+      "description": "Percentage of modified orders with less favorable prices (urgency indicator) Stored as a fraction (0\u20131); multiply by 100 for percentage display."
+    },
+    {
+      "name": "primary_order_type",
+      "description": "Most common order type across all orders (MARKET, LIMIT or STOP)."
+    },
+    {
+      "name": "median_time_between_trades_90d",
+      "description": "Median duration in minutes between consecutive trades"
+    },
+    {
+      "name": "is_holding_overnight_positions_flag",
+      "description": "Whether any matched position was held for at least 24 hours; a historical holding behavior flag."
+    }
+  ],
+  "risk_profile": [
+    {
+      "name": "client_id",
+      "description": "Alphanumeric synthetic client identifier; join metric tables on this column."
+    },
+    {
+      "name": "pnl_1d",
+      "description": "Profit/loss from trading in last 24 hours"
+    },
+    {
+      "name": "pnl_7d",
+      "description": "Profit/loss from trading in last 7 days"
+    },
+    {
+      "name": "pnl_30d",
+      "description": "Profit/loss from trading in last 30 days"
+    },
+    {
+      "name": "pnl_90d",
+      "description": "Profit/loss from trading in last 90 days"
+    },
+    {
+      "name": "preferred_asset_class",
+      "description": "Asset class most frequently traded"
+    },
+    {
+      "name": "pnl_360d",
+      "description": "Profit/loss from trading in last 360 days"
+    },
+    {
+      "name": "total_pnl_90d",
+      "description": "Realized profit/loss on matched closed fills during the last 90 days, in INR; identical to pnl_90d."
+    },
+    {
+      "name": "user_rank_by_pnl_90d",
+      "description": "User's absolute rank based on total_pnl_90d vs all traders"
+    },
+    {
+      "name": "pnl_percentile_90d",
+      "description": "Fraction (0\u20131) from percent_rank of realized 90-day P&L, across all clients."
+    },
+    {
+      "name": "max_single_day_loss_90d",
+      "description": "Magnitude of worst daily realized loss (nonnegative INR; zero when no losses)."
+    },
+    {
+      "name": "pnl_volatility_90d",
+      "description": "Standard deviation of daily P&L (risk volatility measure)"
+    },
+    {
+      "name": "large_loss_day_count_90d",
+      "description": "Number of days with P&L below -\u20b910,000 threshold"
+    },
+    {
+      "name": "max_pnl_drawdown_90d",
+      "description": "Largest peak-to-trough decline in cumulative P&L"
+    },
+    {
+      "name": "post_large_loss_behavior_change_flag",
+      "description": "Flag (1/0) for revenge trading behavior after large losses"
+    },
+    {
+      "name": "is_concentrated_trader_flag",
+      "description": "Flag (1/0) if >80% of volume from single instrument (high-risk concentration)"
+    },
+    {
+      "name": "trade_concentration_index_90d",
+      "description": "Herfindahl index: sum of squared per-symbol shares of traded notional in the last 90 days."
+    },
+    {
+      "name": "lifetime_distinct_symbols_traded",
+      "description": "Total unique instruments ever traded (specialist vs explorer)"
+    }
+  ],
+  "platform_health": [
+    {
+      "name": "client_id",
+      "description": "Alphanumeric synthetic client identifier; join metric tables on this column."
+    },
+    {
+      "name": "total_session_expirations_30d",
+      "description": "Global count of session expirations due to token expiry"
+    },
+    {
+      "name": "most_traded_instrument_by_volume_30d",
+      "description": "Single instrument with highest trading volume across all users"
+    },
+    {
+      "name": "instrument_with_largest_trader_increase",
+      "description": "Instrument with largest increase in unique traders (trending)"
+    },
+    {
+      "name": "client_error_rate_30d",
+      "description": "Percentage of API requests resulting in 4xx client errors Stored as a fraction (0\u20131); multiply by 100 for percentage display."
+    },
+    {
+      "name": "avg_api_response_time_ms_30d",
+      "description": "Average server response time for user's API requests"
+    },
+    {
+      "name": "avg_time_to_fill_seconds_30d",
+      "description": "Average time from order placement to trade execution"
+    },
+    {
+      "name": "error_to_trade_ratio_30d",
+      "description": "Ratio of client-side errors to executed trades"
+    },
+    {
+      "name": "avg_time_to_load_dashboard_ms",
+      "description": "Average response time for dashboard API calls"
+    },
+    {
+      "name": "order_rejection_rate_30d",
+      "description": "Percentage of orders explicitly rejected by system Stored as a fraction (0\u20131); multiply by 100 for percentage display."
+    },
+    {
+      "name": "orders_not_traded_ratio_30d",
+      "description": "Ratio of orders never filled (cancelled/rejected) to total orders"
+    },
+    {
+      "name": "avg_order_life_to_cancel_minutes",
+      "description": "Average time cancelled orders survived before cancellation"
+    },
+    {
+      "name": "avg_trade_fill_ratio_90d",
+      "description": "Mean filled quantity / requested quantity over orders in the last 90 days, including unfilled orders."
+    },
+    {
+      "name": "is_high_volume_cancelled_flag",
+      "description": "Flag (1/0) if user has high notional value of cancelled orders (top 5%)"
+    }
+  ],
+  "market_health": [
+    {
+      "name": "client_id",
+      "description": "Alphanumeric synthetic client identifier; join metric tables on this column."
+    },
+    {
+      "name": "most_cancelled_instrument_30d",
+      "description": "Instrument with highest cancellation count (volatility/friction indicator)"
+    },
+    {
+      "name": "most_profitable_instrument_all_users_90d",
+      "description": "Instrument generating highest total positive P&L across all users"
+    }
+  ]
+}

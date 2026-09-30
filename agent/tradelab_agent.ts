@@ -1,182 +1,252 @@
-import { query, Query } from "@anthropic-ai/claude-agent-sdk";
-import { createMcpServer } from "../mcp_servers/tradelab_mcp_server";
-import { getPrompt, getPrompts } from "@/lib/prompts";
+import { randomUUID } from "node:crypto";
+import {
+  connectMcp,
+  type ToolOutput,
+  type ToolArtifact,
+} from "../mcp_servers/tradelab_mcp_server";
+import {
+  conversation,
+  createRun,
+  lockConversation,
+  saveConversation,
+  unlockConversation,
+} from "../src/lib/runtime/store";
+import { boundedNumber } from "../src/lib/runtime/config";
+import { getPrompts } from "../src/lib/prompts";
+import { createRouter } from "./providers/router";
+import type { AgentMessage, Provider } from "./providers/types";
 
-let TRADELAB_SYSTEM_PROMPT = getPrompt("tradelab_system_prompt");
-// Append any additional instructions (for example PDF behavior) if present
-const prompts = getPrompts();
-if (prompts && typeof prompts.additional_instructions === 'string' && prompts.additional_instructions.trim().length > 0) {
-  TRADELAB_SYSTEM_PROMPT = TRADELAB_SYSTEM_PROMPT + "\n\n" + prompts.additional_instructions;
+export type AgentEvent = { type: string; [key: string]: unknown };
+export type AgentOptions = {
+  owner?: string;
+  provider?: string;
+  signal?: AbortSignal;
+  onEvent?: (event: AgentEvent) => void;
+  providers?: Provider[];
+};
+type DisplayMessage = {
+  id: string;
+  type: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  image?: string;
+  pdfUrl?: string;
+  toolStatus?: string;
+};
+export function recentHistory(history: AgentMessage[], maxChars = 26000) {
+  // Drop complete oldest user turns, never split an assistant tool call/result group.
+  let start = 0;
+  while (JSON.stringify(history.slice(start)).length > maxChars) {
+    const next = history.findIndex((m, i) => i > start && m.role === "user");
+    if (next < 0) break;
+    start = next;
+  }
+  return history.slice(start);
 }
-
 export async function runTradeLabAgent(
   userQuery: string,
-  existingSessionId: string | undefined,
-  onText: (chunk: string) => void,
-  onThinking: (reasoning: string) => void,
-  onTool?: (tool: string) => void,
-  onImage?: (imagePath: string) => void,
-  onSessionId?: (sessionId: string) => void,
-  onComplete?: (result: {
-    sessionId: string;
-    duration: number;
-    numTurns: number;
-    totalCost: number;
-    finalResult: string;
-  }) => void
+  existingSessionId?: string,
+  onText: (text: string) => void = () => {},
+  onThinking: (text: string) => void = () => {},
+  onTool: (tool: string) => void = () => {},
+  onImage: (path: string) => void = () => {},
+  onSessionId: (id: string) => void = () => {},
+  options: AgentOptions = {},
 ) {
-  let isStreamActive = true;
-  
-  // Wrap callbacks to check if stream is still active
-  const safeOnText = (chunk: string) => {
-    if (isStreamActive) {
-      onText(chunk);
-    }
+  const owner = options.owner || "cli",
+    timeout = boundedNumber(
+      process.env.AGENT_TIMEOUT_MS,
+      360000,
+      10000,
+      600000,
+    );
+  if (!userQuery.trim() || userQuery.length > 8000)
+    throw new Error("Enter a question between 1 and 8,000 characters.");
+  const emit = (e: AgentEvent) => options.onEvent?.(e);
+  const status = (content: string) => {
+    onThinking(content);
+    emit({ type: "thinking", content });
   };
-  
-  const safeOnThinking = (reasoning: string) => {
-    if (isStreamActive) {
-      onThinking(reasoning);
-    }
+  const router = createRouter(options.provider, options.providers, status);
+  const saved = await conversation(owner, existingSessionId);
+  await lockConversation(owner, saved.id, timeout + 10000);
+  const history: AgentMessage[] = JSON.parse(saved.history),
+    messages: DisplayMessage[] = JSON.parse(saved.messages);
+  const answer: DisplayMessage = {
+    id: randomUUID(),
+    type: "assistant",
+    content: "",
+    timestamp: new Date().toISOString(),
+    toolStatus: "idle",
   };
-  
-  const safeOnTool = (tool: string) => {
-    if (isStreamActive && onTool) {
-      onTool(tool);
-    }
-  };
-  
-  const safeOnImage = (imagePath: string) => {
-    if (isStreamActive && onImage) {
-      onImage(imagePath);
-    }
-  };
-  
-  const safeOnSessionId = (sessionId: string) => {
-    if (isStreamActive && onSessionId) {
-      onSessionId(sessionId);
-    }
-  };
-  
-  // Create a fresh MCP server instance for this request
-  // This enables concurrent requests without blocking each other
-  const mcpServerInstance = createMcpServer();
-  
-  // Track current sessionId
-  let currentSessionId = existingSessionId || '';
-  
-  const systemPrompt = TRADELAB_SYSTEM_PROMPT;
-  
-  const stream: Query = query({
-    prompt: `User Query: ${userQuery}`,
-    options: {
-      ...(existingSessionId ? { resume: existingSessionId } : {}),
-      mcpServers: {
-        "tradelab-mcp-server": mcpServerInstance,
-      },
-      model: "claude-haiku-4-5",
-      allowedTools: [
-        "mcp__tradelab-mcp-server__getSchema",
-        "mcp__tradelab-mcp-server__sql_query_writer",
-        "mcp__tradelab-mcp-server__sql_query_executor",
-        "mcp__tradelab-mcp-server__json_sql_query_executor",
-        "mcp__tradelab-mcp-server__python_script_executor",
-        "mcp__tradelab-mcp-server__python_script_writer",
-        "mcp__tradelab-mcp-server__pdfGenerator",
-      ],
-      systemPrompt,
-    },
+  const artifacts: ToolArtifact[] = [];
+  const signal = AbortSignal.any([
+    AbortSignal.timeout(timeout),
+    ...(options.signal ? [options.signal] : []),
+  ]);
+  let mcp: Awaited<ReturnType<typeof connectMcp>> | undefined;
+  onSessionId(saved.id);
+  emit({ type: "session_id", sessionId: saved.id });
+  history.push({ role: "user", content: userQuery });
+  messages.push({
+    id: randomUUID(),
+    type: "user",
+    content: userQuery,
+    timestamp: new Date().toISOString(),
   });
-
-
-
-  // PDF and image detection now happens entirely through tool response parsing
-  // No global callbacks needed - prevents cross-request contamination
-
   try {
-    for await (const message of stream) {
-      if (message.type === "system" && message.subtype === "init") {
-        currentSessionId = message.session_id;
-        console.log(`[session] active: ${currentSessionId}`);
-        safeOnSessionId(currentSessionId);
-      }
-
-      if (message.type === "user") {
-        // Tool results come as user messages
-        for (const part of message.message?.content || []) {
-          if (part.type === 'tool_result') {
-            for (const contentItem of part.content || []) {
-              if (contentItem.type === 'text' && contentItem.text) {
-                const text = contentItem.text;
-                
-                // Find JSON with file URLs
-                const jsonMatch = text.match(/\{[^}]*"success"\s*:\s*true[^}]*\}/);
-                if (jsonMatch) {
-                  try {
-                    const data = JSON.parse(jsonMatch[0]);
-                    
-                    if (data.imageUrl) {
-                      const sessionId = currentSessionId || existingSessionId;
-                      const rewrittenUrl = sessionId ? 
-                        data.imageUrl.replace(/temp_\d+/, sessionId) : 
-                        data.imageUrl;
-                      console.log('✅ Image from tool:', rewrittenUrl);
-                      safeOnImage(rewrittenUrl);
-                    }
-                    
-                    if (data.pdfUrl) {
-                      const sessionId = currentSessionId || existingSessionId;
-                      const rewrittenUrl = sessionId ? 
-                        data.pdfUrl.replace(/temp_\d+/, sessionId) : 
-                        data.pdfUrl;
-                      console.log('✅ PDF from tool:', rewrittenUrl);
-                      safeOnText(`PDF_EVENT:${JSON.stringify({ type: 'pdf_generated', pdfUrl: rewrittenUrl })}`);
-                    }
-                  } catch (e) {
-                    // Invalid JSON
-                  }
-                }
-              }
-            }
+    mcp = await connectMcp(createRun(owner, saved.id, signal));
+    const { tools } = await mcp.client.listTools();
+    const prompts = await getPrompts(owner);
+    const system =
+      prompts.tradelab_system_prompt +
+      (prompts.additional_instructions
+        ? "\nUser response preferences:\n" + prompts.additional_instructions
+        : "");
+    const limit = boundedNumber(process.env.MAX_AGENT_TURNS, 16, 3, 32);
+    for (let turn = 0; turn < limit; turn++) {
+      signal.throwIfAborted();
+      const result = await router.complete({
+        system,
+        messages: recentHistory(history),
+        tools,
+        signal,
+      });
+      emit({
+        type: "provider",
+        provider: result.provider,
+        model: result.model,
+        usage: result.usage,
+      });
+      history.push({
+        role: "assistant",
+        content: result.text,
+        toolCalls: result.toolCalls.length ? result.toolCalls : undefined,
+        native: result.native,
+      });
+      if (!result.toolCalls.length) {
+        answer.content = result.text;
+        const seenNames = new Set<string>();
+        const uniqueArtifacts: ToolArtifact[] = [];
+        for (let i = artifacts.length - 1; i >= 0; i--) {
+          const a = artifacts[i];
+          if (!seenNames.has(a.filename)) {
+            seenNames.add(a.filename);
+            uniqueArtifacts.unshift(a);
           }
         }
+        const links = uniqueArtifacts
+          .filter((a) => !answer.content.includes(a.url))
+          .map((a) => `[${a.filename}](${a.url})`);
+        if (links.length)
+          answer.content += "\n\nDownloads: " + links.join(" · ");
+        onText(answer.content);
+        emit({ type: "content", content: answer.content });
+        return { sessionId: saved.id, content: answer.content, artifacts: uniqueArtifacts };
       }
-      
-      if (message.type === "assistant") {
-         for (const part of message.message.content) {
-          if (part.type === "text") {
-            const text = part.text;
-            
-            // Extract thinking content from <thinking> tags
-            const thinkingRegex = /<thinking>([\s\S]*?)<\/thinking>/g;
-            let match;
-            let processedText = text;
-            
-            while ((match = thinkingRegex.exec(text)) !== null) {
-              const thinkingContent = match[1].trim();
-              if (thinkingContent) {
-                safeOnThinking(thinkingContent);
-              }
-              processedText = processedText.replace(match[0], '');
-            }
-            
-            const finalText = processedText.trim();
-            if (finalText) {
-              safeOnText(finalText);
-            }
+      for (const call of result.toolCalls) {
+        signal.throwIfAborted();
+        onTool(call.name);
+        emit({ type: "tool_start", tool: call.name });
+        let output: ToolOutput;
+        try {
+          const response = await mcp.client.callTool(
+            { name: call.name, arguments: call.arguments },
+            undefined,
+            { signal, timeout: 45000 },
+          );
+          output = response.structuredContent as ToolOutput;
+          if (!output) {
+            const content = response.content as {
+              type: string;
+              text?: string;
+            }[];
+            output = {
+              success: false,
+              error:
+                content
+                  ?.filter((c) => c.type === "text")
+                  .map((c) => c.text)
+                  .join("\n") || "Tool returned no result.",
+            };
           }
-          if (part.type === "tool_use") {
-            safeOnTool(part.name);
+        } catch (error) {
+          output = {
+            success: false,
+            error: signal.aborted
+              ? "Request stopped."
+              : error instanceof Error
+                ? error.message
+                : "Tool failed.",
+          };
+        }
+        history.push({
+          role: "tool",
+          content: JSON.stringify(output),
+          toolCallId: call.id,
+          toolName: call.name,
+        });
+        emit({
+          type: "tool_complete",
+          tool: call.name,
+          success: output.success,
+          error: output.error,
+        });
+        for (const a of output.artifacts || []) {
+          artifacts.push(a);
+          emit({ type: "artifact", artifact: a });
+          if (a.mime === "image/png") {
+            answer.image = a.url;
+            onImage(a.url);
+            emit({ type: "image_generated", imagePath: a.url });
+          }
+          if (a.mime === "application/pdf") {
+            answer.pdfUrl = a.url;
+            emit({ type: "pdf_generated", pdfUrl: a.url });
           }
         }
-      }
-
-      if (message.type === "error") {
-        safeOnThinking(`Error: ${message.error?.message ?? "unknown"}`);
       }
     }
+    throw new Error(
+      "Analysis reached its step limit. Try a narrower question; completed downloads remain available.",
+    );
+  } catch (error) {
+    // Persist a valid transcript even if cancellation interrupts a batch of tool calls.
+    const completed = new Set(
+      history.filter((m) => m.role === "tool").map((m) => m.toolCallId),
+    );
+    for (const m of [...history])
+      for (const call of m.toolCalls || [])
+        if (!completed.has(call.id))
+          history.push({
+            role: "tool",
+            toolCallId: call.id,
+            toolName: call.name,
+            content: JSON.stringify({
+              success: false,
+              error: "Request interrupted before execution.",
+            }),
+          });
+    answer.content = signal.aborted
+      ? "Analysis stopped or timed out. You can retry."
+      : error instanceof Error
+        ? error.message
+        : "Analysis failed.";
+    history.push({ role: "assistant", content: answer.content });
+    throw new Error(answer.content);
   } finally {
-    // Mark stream as inactive to prevent further callbacks
-    isStreamActive = false;
+    try {
+      messages.push(answer);
+      await saveConversation(
+        owner,
+        saved.id,
+        history,
+        messages,
+        messages[0]?.content || "Conversation",
+      );
+    } finally {
+      await unlockConversation(owner, saved.id);
+      await mcp?.close();
+    }
   }
 }

@@ -1,0 +1,43 @@
+services:
+  tradelab:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file: .env.local
+    environment:
+      TRADELAB_DATA_DIR: /app/data
+      PYTHON_BIN: /opt/venv/bin/python
+      HOSTNAME: 0.0.0.0
+    volumes:
+      - tradelab-data:/app/data
+    restart: unless-stopped
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    profiles: [clickhouse]
+    ports:
+      - "127.0.0.1:8123:8123"
+    environment:
+      CLICKHOUSE_USER: tradelab
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_SEED_PASSWORD:-local-demo-only}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+  postgres:
+    image: postgres:16-alpine
+    profiles: [postgres]
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: tradelab
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tradelab_local}
+      POSTGRES_DB: tradelab
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+volumes:
+  tradelab-data:
+  clickhouse-data:
+  postgres-data:

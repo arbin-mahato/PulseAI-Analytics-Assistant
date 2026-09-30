@@ -1,57 +1,48 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
-
+import fs from "node:fs";
+import { Readable } from "node:stream";
+import { artifact } from "@/lib/runtime/store";
+import {
+  ownerOf,
+  productionCheck,
+  httpError,
+  HttpError,
+} from "@/lib/runtime/auth";
+import { ensureInside, dataRoot } from "@/lib/runtime/config";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
+  req: Request,
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
-  const { path } = await params;
   try {
-    // Serve from global folders:
-    // /api/files/images/sessionId__file.png -> generated_files/images/sessionId__file.png
-    // If real sessionId file doesn't exist, try temp_ version
-    const filePath = path.join('/');
-    let fullPath = join(process.cwd(), 'generated_files', filePath);
-    
-    if (!existsSync(fullPath)) {
-      // Try temp_ version: replace sessionId with temp_* pattern
-      const { readdirSync } = require('fs');
-      const dir = join(process.cwd(), 'generated_files', path[0]);
-      const filename = path.slice(1).join('/');
-      const baseFilename = filename.replace(/^[^_]+__/, '');
-      
-      if (existsSync(dir)) {
-        const files = readdirSync(dir);
-        const tempFile = files.find((f: string) => f.startsWith('temp_') && f.endsWith('__' + baseFilename));
-        if (tempFile) {
-          fullPath = join(dir, tempFile);
-          console.log(`🔄 Serving temp file: ${tempFile} for requested: ${filename}`);
-        }
-      }
-      
-      if (!existsSync(fullPath)) {
-        return new NextResponse('File not found', { status: 404 });
-      }
-    }
-
-    const fileBuffer = await readFile(fullPath);
-    const extension = filePath.split('.').pop()?.toLowerCase();
-    
-    let contentType = 'application/octet-stream';
-    if (extension === 'pdf') contentType = 'application/pdf';
-    else if (extension === 'png') contentType = 'image/png';
-    else if (extension === 'jpg' || extension === 'jpeg') contentType = 'image/jpeg';
-    else if (extension === 'svg') contentType = 'image/svg+xml';
-
-    return new NextResponse(fileBuffer, {
-      headers: {
-        'Content-Type': contentType,
-        'Cache-Control': 'no-cache',
-      },
-    });
-  } catch (error) {
-    return new NextResponse('Internal Server Error', { status: 500 });
+    productionCheck();
+    const { path: parts } = await params;
+    if (parts.length !== 1) throw new HttpError(404, "File not found.");
+    const a = await artifact(parts[0]);
+    if (!a || (!a.public && a.owner !== ownerOf(req)))
+      throw new HttpError(404, "File not found.");
+    const file = ensureInside(dataRoot(), a.local_path);
+    if (!fs.existsSync(file))
+      throw new HttpError(404, "The stored file is no longer available.");
+    const download =
+      new URL(req.url).searchParams.has("download") ||
+      !["image/png", "image/jpeg"].includes(a.mime);
+    const filename = a.filename.replace(/[^a-zA-Z0-9_.-]/g, "_");
+    const headers: Record<string, string> = {
+      "Content-Type": a.mime,
+      "Content-Length": String(fs.statSync(file).size),
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"`,
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": download
+        ? "default-src 'none'"
+        : "default-src 'none'; sandbox allow-scripts allow-same-origin allow-downloads",
+    };
+    return new Response(
+      Readable.toWeb(fs.createReadStream(file)) as ReadableStream,
+      { headers },
+    );
+  } catch (e) {
+    return httpError(e);
   }
 }

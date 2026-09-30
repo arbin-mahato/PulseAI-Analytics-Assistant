@@ -1,0 +1,66 @@
+name: TradeLab checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: npm ci
+      - run: python -m pip install -r requirements.txt
+      - run: npm run build-db -- --as-of 2026-09-11
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: docker build -t tradelab-ci .
+      - name: Verify container startup and database seeding
+        run: |
+          docker run -d --name tradelab-ci -p 3000:3000 -e APP_ACCESS_PASSWORD=ci-only-password -e SEED_AS_OF=2026-09-11 tradelab-ci
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3000/api/health > /tmp/tradelab-health.json; then
+              cat /tmp/tradelab-health.json
+              docker exec tradelab-ci test -s /app/data/warehouse.duckdb
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs tradelab-ci
+          exit 1
+      - name: Stop test container
+        if: always()
+        run: docker rm -f tradelab-ci || true
+      - name: Start optional ClickHouse demo
+        run: |
+          docker run -d --name tradelab-clickhouse -p 127.0.0.1:8123:8123 -e CLICKHOUSE_USER=tradelab -e CLICKHOUSE_PASSWORD=local-demo-only -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 clickhouse/clickhouse-server:25.8
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8123/ping; then exit 0; fi
+            sleep 2
+          done
+          docker logs tradelab-clickhouse
+          exit 1
+      - name: Seed and verify the same snapshot in ClickHouse
+        env:
+          ANALYTICS_BACKEND: clickhouse
+          CLICKHOUSE_URL: http://localhost:8123
+          CLICKHOUSE_USER: tradelab
+          CLICKHOUSE_PASSWORD: local-demo-only
+        run: |
+          npm run seed:clickhouse
+          npm run seed:clickhouse
+          npm run test:clickhouse
+      - name: Stop optional ClickHouse demo
+        if: always()
+        run: docker rm -f tradelab-clickhouse || true

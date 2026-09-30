@@ -3,12 +3,16 @@
 import { useState } from "react";
 import logger from "../lib/logger";
 
-export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () => void }) {
+export default function FileUpload({
+  onUploadSuccess,
+}: {
+  onUploadSuccess?: () => void;
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isPublic, setIsPublic] = useState(true);
+  const [isPublic, setIsPublic] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -19,7 +23,7 @@ export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () =
 
       logger.info(
         { filename: selected.name, size: selected.size },
-        "File selected for upload"
+        "File selected for upload",
       );
     }
   };
@@ -55,17 +59,22 @@ export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () =
       setFile(null);
 
       // Reset file input
-      const fileInput = document.getElementById("file-input") as HTMLInputElement;
+      const fileInput = document.getElementById(
+        "file-input",
+      ) as HTMLInputElement;
       if (fileInput) fileInput.value = "";
 
       if (onUploadSuccess) onUploadSuccess();
 
       logger.info(
-        { uploadedUrl: data.file.url, visibility: isPublic ? "public" : "private" },
-        "File uploaded successfully"
+        {
+          uploadedUrl: data.file.url,
+          visibility: isPublic ? "public" : "private",
+        },
+        "File uploaded successfully",
       );
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed.");
       logger.error({ err, filename: file?.name }, "File upload failed");
     } finally {
       setUploading(false);
@@ -109,7 +118,7 @@ export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () =
             <span className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
               🔒 Private
               <span className="block text-xs text-gray-500 dark:text-gray-400">
-                Requires auth (15 min)
+                Only your workspace
               </span>
             </span>
           </label>
@@ -125,6 +134,7 @@ export default function FileUpload({ onUploadSuccess }: { onUploadSuccess?: () =
           <input
             id="file-input"
             type="file"
+            accept=".csv,.json,.txt,.pdf,.png,.jpg,.jpeg"
             onChange={handleFileChange}
             className="block w-full text-sm text-gray-900 dark:text-gray-300 
                      border border-gray-300 dark:border-gray-600 rounded-lg 

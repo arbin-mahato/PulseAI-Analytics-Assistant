@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
 interface ThinkingStep {
   timestamp: string;
-  type: 'tool_start' | 'tool_complete' | 'reasoning' | 'status' | 'thinking';
+  type: "tool_start" | "tool_complete" | "reasoning" | "status" | "thinking";
   tool?: string;
   content: string;
-  output?: any;
+  output?: unknown;
 }
 
 interface ThinkingPanelProps {
@@ -15,7 +15,7 @@ interface ThinkingPanelProps {
   isExpanded: boolean;
   onToggle: () => void;
   currentTool?: string;
-  toolStatus?: 'running' | 'completed' | 'idle';
+  toolStatus?: "running" | "completed" | "idle";
 }
 
 export default function ThinkingPanel({
@@ -23,7 +23,7 @@ export default function ThinkingPanel({
   isExpanded,
   onToggle,
   currentTool,
-  toolStatus
+  toolStatus,
 }: ThinkingPanelProps) {
   if (!thinkingLog || thinkingLog.length === 0) {
     return null;
@@ -35,7 +35,7 @@ export default function ThinkingPanel({
         onClick={onToggle}
         className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors cursor-pointer"
       >
-        <span className="text-xs">{isExpanded ? '▼' : '▶'}</span>
+        <span className="text-xs">{isExpanded ? "▼" : "▶"}</span>
         <span className="font-medium">Show thinking</span>
       </button>
 
@@ -48,11 +48,11 @@ export default function ThinkingPanel({
                   [{step.timestamp}]
                 </span>
                 <span className="font-medium text-gray-800 dark:text-gray-200 flex-shrink-0">
-                  {step.type === 'tool_start' && `🔧 ${step.tool} started`}
-                  {step.type === 'tool_complete' && `✅ ${step.tool} completed`}
-                  {step.type === 'reasoning' && '🧠 Thinking'}
-                  {step.type === 'status' && '📌 Status'}
-                  {step.type === 'thinking' && '🧠 Thinking'}
+                  {step.type === "tool_start" && `🔧 ${step.tool} started`}
+                  {step.type === "tool_complete" && `✅ ${step.tool} completed`}
+                  {step.type === "reasoning" && "🧠 Thinking"}
+                  {step.type === "status" && "📌 Status"}
+                  {step.type === "thinking" && "🧠 Thinking"}
                 </span>
               </div>
               {step.content && (
@@ -60,7 +60,7 @@ export default function ThinkingPanel({
                   {step.content}
                 </div>
               )}
-              {step.output && (
+              {Boolean(step.output) && (
                 <pre className="mt-2 ml-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-x-auto">
                   {JSON.stringify(step.output, null, 2)}
                 </pre>

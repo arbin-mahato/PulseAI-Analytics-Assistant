@@ -1,0 +1,96 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import {
+  createRun,
+  ownedArtifacts,
+  registerArtifact,
+} from "@/lib/runtime/store";
+import {
+  requireOwner,
+  checkOrigin,
+  httpError,
+  HttpError,
+  readLimited,
+  rateLimit,
+} from "@/lib/runtime/auth";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export async function GET(req: Request) {
+  try {
+    return Response.json(
+      {
+        files: (await ownedArtifacts(requireOwner(req))).map((a) => ({
+          ...a,
+          url: `/api/files/${a.id}`,
+          isPublic: Boolean(a.public),
+          createdAt: new Date(Number(a.created)).toISOString(),
+        })),
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
+  } catch (e) {
+    return httpError(e);
+  }
+}
+export async function POST(req: Request) {
+  try {
+    checkOrigin(req);
+    const owner = requireOwner(req);
+    await rateLimit(`upload:${owner}`, 10);
+    const bytes = await readLimited(req, 11 * 1024 * 1024);
+    const form = await new Response(new Uint8Array(bytes), {
+      headers: { "content-type": req.headers.get("content-type") || "" },
+    }).formData();
+    const file = form.get("file");
+    if (!(file instanceof File) || file.size > 10 * 1024 * 1024)
+      throw new HttpError(400, "Choose a file up to 10 MB.");
+    const ext = path.extname(file.name).toLowerCase(),
+      types: Record<string, string> = {
+        ".csv": "text/csv",
+        ".json": "application/json",
+        ".txt": "text/plain",
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+      };
+    const mime = types[ext];
+    if (!mime)
+      throw new HttpError(
+        400,
+        "Supported files: CSV, JSON, TXT, PDF, PNG and JPEG.",
+      );
+    const data = Buffer.from(await file.arrayBuffer());
+    if (
+      mime === "application/pdf" &&
+      !data.subarray(0, 5).equals(Buffer.from("%PDF-"))
+    )
+      throw new HttpError(400, "Invalid PDF.");
+    if (
+      mime === "image/png" &&
+      !data
+        .subarray(0, 8)
+        .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    )
+      throw new HttpError(400, "Invalid PNG.");
+    if (
+      mime === "image/jpeg" &&
+      (data[0] !== 255 || data[1] !== 216 || data[2] !== 255)
+    )
+      throw new HttpError(400, "Invalid JPEG.");
+    const ctx = createRun(owner, "uploads"),
+      destination = path.join(ctx.directory, randomUUID() + ext);
+    await fs.writeFile(destination, data);
+    const saved = await registerArtifact(
+      ctx,
+      destination,
+      path.basename(file.name).slice(0, 150),
+      mime,
+      form.get("isPublic") === "true",
+    );
+    return Response.json({ file: saved }, { status: 201 });
+  } catch (e) {
+    return httpError(e);
+  }
+}
